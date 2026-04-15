@@ -6,8 +6,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  # Replace 'YOUR_ORG' with your organization name
-  IMAGE_NAME: BrainlifeMEEG/meegflow
+  IMAGE_NAME: brainlifemeeg/meegflow
 
 jobs:
   build-and-push:
