@@ -18,7 +18,7 @@ try:
     import mne
     from mne.utils import logger
     from meegflow import MEEGFlowPipeline
-    from readers import BIDSReader
+    from meegflow.readers import BIDSReader
     MNE_AVAILABLE = True
 except ImportError as e:
     MNE_AVAILABLE = False

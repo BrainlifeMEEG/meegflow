@@ -51,7 +51,7 @@ def test_get_entity_values_with_string():
     """Test that _get_entity_values returns a list when given a string."""
     try:
         from meegflow import MEEGFlowPipeline
-        from readers import BIDSReader
+        from meegflow.readers import BIDSReader
         
         with tempfile.TemporaryDirectory() as tmpdir:
             bids_root = Path(tmpdir)
@@ -71,7 +71,7 @@ def test_get_entity_values_with_list():
     """Test that _get_entity_values returns the list when given a list."""
     try:
         from meegflow import MEEGFlowPipeline
-        from readers import BIDSReader
+        from meegflow.readers import BIDSReader
         
         with tempfile.TemporaryDirectory() as tmpdir:
             bids_root = Path(tmpdir)
@@ -91,7 +91,7 @@ def test_get_entity_values_with_none_returns_all_subjects():
     """Test that _get_entity_values returns all subjects when input is None."""
     try:
         from meegflow import MEEGFlowPipeline
-        from readers import BIDSReader
+        from meegflow.readers import BIDSReader
         
         with tempfile.TemporaryDirectory() as tmpdir:
             bids_root = create_mock_bids_dataset(tmpdir)
@@ -112,7 +112,7 @@ def test_get_entity_values_with_none_returns_all_tasks():
     """Test that _get_entity_values returns all tasks when input is None."""
     try:
         from meegflow import MEEGFlowPipeline
-        from readers import BIDSReader
+        from meegflow.readers import BIDSReader
         
         with tempfile.TemporaryDirectory() as tmpdir:
             bids_root = create_mock_bids_dataset(tmpdir)
@@ -133,7 +133,7 @@ def test_get_entity_values_with_none_returns_all_sessions():
     """Test that _get_entity_values returns all sessions when input is None."""
     try:
         from meegflow import MEEGFlowPipeline
-        from readers import BIDSReader
+        from meegflow.readers import BIDSReader
         
         with tempfile.TemporaryDirectory() as tmpdir:
             bids_root = create_mock_bids_dataset(tmpdir)
@@ -154,7 +154,7 @@ def test_get_entity_values_with_none_empty_dataset():
     """Test that _get_entity_values returns [None] when no values found."""
     try:
         from meegflow import MEEGFlowPipeline
-        from readers import BIDSReader
+        from meegflow.readers import BIDSReader
         
         with tempfile.TemporaryDirectory() as tmpdir:
             bids_root = Path(tmpdir)
@@ -177,7 +177,7 @@ def test_get_entity_values_invalid_type():
     """Test that _get_entity_values raises ValueError for invalid input types."""
     try:
         from meegflow import MEEGFlowPipeline
-        from readers import BIDSReader
+        from meegflow.readers import BIDSReader
         
         with tempfile.TemporaryDirectory() as tmpdir:
             bids_root = Path(tmpdir)

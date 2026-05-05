@@ -96,17 +96,17 @@ from mne.utils import logger
 import numpy as np
 from mne_bids import BIDSPath, read_raw_bids, get_entity_vals
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeRemainingColumn
-import adaptive_reject
+from . import adaptive_reject
 from collections import defaultdict
-from utils import NpEncoder
+from .utils import NpEncoder
 import matplotlib.pyplot as plt
 import importlib.util
 import sys
 import inspect
-from readers import BIDSReader
+from .readers import BIDSReader
 
 if TYPE_CHECKING:
-    from readers import DatasetReader
+    from .readers import DatasetReader
 
 class MEEGFlowPipeline:
     def __init__(

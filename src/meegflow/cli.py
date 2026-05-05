@@ -65,8 +65,8 @@ import json
 import yaml
 from pathlib import Path
 from mne.utils import logger, set_log_file, set_log_level
-from meegflow import MEEGFlowPipeline
-from utils import NpEncoder
+from .pipeline import MEEGFlowPipeline
+from .utils import NpEncoder
 
 def _parse_args():
     parser = argparse.ArgumentParser(description='Run MEEG preprocessing pipeline on one or more subjects.')

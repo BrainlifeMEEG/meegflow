@@ -16,7 +16,7 @@ src_dir = repo_root / "src"
 sys.path.insert(0, str(src_dir))
 
 from meegflow import MEEGFlowPipeline
-from readers import BIDSReader
+from meegflow.readers import BIDSReader
 
 
 def create_mock_raw_with_montage():

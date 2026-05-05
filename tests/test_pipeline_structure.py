@@ -19,14 +19,14 @@ configs_dir = repo_root / "configs"
 
 def test_pipeline_file_exists():
     """Test that the main pipeline file exists."""
-    pipeline_file = src_dir / "meegflow.py"
+    pipeline_file = src_dir / "meegflow" / "pipeline.py"
     assert pipeline_file.exists(), "Pipeline file does not exist"
     print("✓ Pipeline file exists")
 
 
 def test_pipeline_syntax():
     """Test that the pipeline file has valid Python syntax."""
-    pipeline_file = src_dir / "meegflow.py"
+    pipeline_file = src_dir / "meegflow" / "pipeline.py"
     with open(pipeline_file, 'r') as f:
         code = f.read()
     
@@ -39,7 +39,7 @@ def test_pipeline_syntax():
 
 def test_pipeline_has_required_classes():
     """Test that the pipeline file contains required classes."""
-    pipeline_file = src_dir / "meegflow.py"
+    pipeline_file = src_dir / "meegflow" / "pipeline.py"
     with open(pipeline_file, 'r') as f:
         code = f.read()
     
@@ -49,7 +49,7 @@ def test_pipeline_has_required_classes():
 
 def test_pipeline_has_required_methods():
     """Test that the pipeline class has required methods."""
-    pipeline_file = src_dir / "meegflow.py"
+    pipeline_file = src_dir / "meegflow" / "pipeline.py"
     with open(pipeline_file, 'r') as f:
         code = f.read()
     
@@ -124,7 +124,7 @@ def test_requirements_file_exists():
 
 def test_output_directories_structure():
     """Test that the pipeline creates correct output directory structure."""
-    pipeline_file = src_dir / "meegflow.py"
+    pipeline_file = src_dir / "meegflow" / "pipeline.py"
     with open(pipeline_file, 'r') as f:
         code = f.read()
     
@@ -160,7 +160,7 @@ def test_readme_exists():
 
 def test_batch_processing_support():
     """Test that the pipeline supports batch processing."""
-    pipeline_file = src_dir / "meegflow.py"
+    pipeline_file = src_dir / "meegflow" / "pipeline.py"
     with open(pipeline_file, 'r') as f:
         code = f.read()
     

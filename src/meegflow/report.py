@@ -69,7 +69,7 @@ import numpy as np
 import mne
 from mne.utils import logger
 import matplotlib.pyplot as plt
-from utils import NpEncoder
+from .utils import NpEncoder
 
 
 def collect_bad_channels_from_steps(preprocessing_steps: List[Dict[str, Any]]) -> List[str]:

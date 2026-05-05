@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Setup script for MEEGFlow."""
 
+import os
 from setuptools import setup, find_packages
 from pathlib import Path
 
@@ -29,7 +30,7 @@ setup(
     python_requires=">=3.8",
     entry_points={
         "console_scripts": [
-            "meegflow=cli:main",
+            "meegflow=meegflow.cli:main",
         ],
     },
     classifiers=[
