@@ -45,18 +45,7 @@ docker run --rm -v /path/to/bids/data:/data meegflow \
 
 1. Clone this repository:
 ```bash
-git clone https://github.com/Laouen/meegflow.git
-cd meegflow
-```
-
-2. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-3. (Optional) Install the package to use the `meegflow` command:
-```bash
-pip install -e .
+pip install meegflow
 ```
 
 ## Usage
