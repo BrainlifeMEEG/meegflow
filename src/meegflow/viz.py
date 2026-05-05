@@ -1,3 +1,5 @@
+"""Visualization utilities for dropped epoch analysis."""
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -12,9 +14,15 @@ def _epoch_event_labels(epochs: mne.Epochs) -> np.ndarray:
     return labels
 
 def droplog_dataframe(epochs: mne.Epochs) -> pd.DataFrame:
-    """
-    One row per (epoch that was dropped, reason).
-    Columns: epoch_ix, event_type, reason
+    """Build a tidy DataFrame of dropped epochs and their rejection reasons.
+
+    Args:
+        epochs: Epochs object after rejection (``drop_log`` must be populated).
+
+    Returns:
+        DataFrame with columns ``epoch_ix``, ``event_type``, and ``reason``.
+        One row per (dropped epoch, rejection reason) pair. Empty if no epochs
+        were dropped.
     """
     event_type = _epoch_event_labels(epochs)
 
@@ -27,7 +35,20 @@ def droplog_dataframe(epochs: mne.Epochs) -> pd.DataFrame:
             rows.append({"epoch_ix": ei, "event_type": event_type[ei], "reason": r})
     return pd.DataFrame(rows)
 
-def plot_drops_by_reason_and_type(epochs: mne.Epochs, title="Dropped epochs by reason and event type"):
+def plot_drops_by_reason_and_type(
+    epochs: mne.Epochs,
+    title: str = "Dropped epochs by reason and event type",
+) -> plt.Figure:
+    """Plot a stacked bar chart of dropped epochs broken down by reason and event type.
+
+    Args:
+        epochs: Epochs object after rejection (``drop_log`` must be populated).
+        title: Title for the figure axes.
+
+    Returns:
+        Matplotlib Figure. If no epochs were dropped the figure contains a
+        text message instead of a chart.
+    """
     df = droplog_dataframe(epochs)
 
     fig, ax = plt.subplots(figsize=(8, 4))

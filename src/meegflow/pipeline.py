@@ -424,7 +424,28 @@ class MEEGFlowPipeline:
         raise ValueError(f"Invalid type for entity '{entity_key}': {type(entity_value)}")
 
     def _find_events_from_raw(self, raw, get_events_from='annotations', shortest_event=1, event_id='auto', stim_channel=None):
-        
+        """Extract events from a Raw object using annotations or a stim channel.
+
+        Args:
+            raw: MNE Raw object to extract events from.
+            get_events_from: Source of events — ``'annotations'`` (default) or
+                ``'stim_channel'``.
+            shortest_event: Minimum number of samples for an event. Used only
+                when ``get_events_from='stim_channel'``. Default 1.
+            event_id: Event ID mapping passed to
+                ``mne.events_from_annotations``. Default ``'auto'``.
+            stim_channel: Stimulus channel name. Required when
+                ``get_events_from='stim_channel'``.
+
+        Returns:
+            Tuple of ``(events, event_id_map)`` where ``events`` is a NumPy
+            array of shape ``(n_events, 3)`` and ``event_id_map`` is a dict
+            mapping event names to integer codes (``None`` for stim-channel
+            mode).
+
+        Raises:
+            ValueError: If ``get_events_from`` is not a recognised method.
+        """
         if get_events_from == 'stim_channel':
             events = mne.find_events(
                 raw,
@@ -846,7 +867,25 @@ class MEEGFlowPipeline:
         return data
 
     def _step_resample(self, data: Dict[str, Any], step_config: Dict[str, Any]) -> Dict[str, Any]:
-        """Resample the data."""
+        """Resample a Raw or Epochs instance to a new sampling frequency.
+
+        Args:
+            data: Pipeline data dict. Must contain the key named by
+                ``step_config['instance']`` (default ``'raw'``).
+            step_config: Step parameters:
+                - ``instance`` (str): Key in ``data`` to resample. Default ``'raw'``.
+                - ``sfreq`` (float): Target sampling frequency. Default 250.
+                - ``npad`` (str|int): Padding mode passed to MNE. Default ``'auto'``.
+                - ``n_jobs`` (int): Parallel jobs. Default 1.
+                - ``resample_events`` (bool): Also resample the events array.
+                  Default ``False``.
+
+        Returns:
+            Updated data dict with the instance resampled in-place.
+
+        Raises:
+            ValueError: If the requested instance is not present in ``data``.
+        """
         instance = step_config.get('instance', 'raw')
         
         if instance not in data:
@@ -882,8 +921,23 @@ class MEEGFlowPipeline:
         return data
 
     def _step_reference(self, data: Dict[str, Any], step_config: Dict[str, Any]) -> Dict[str, Any]:
-        """Apply re-referencing."""
+        """Apply EEG re-referencing to a Raw or Epochs instance.
 
+        Args:
+            data: Pipeline data dict. Must contain the key named by
+                ``step_config['instance']`` (default ``'epochs'``).
+            step_config: Step parameters:
+                - ``instance`` (str): Key in ``data`` to re-reference.
+                  Default ``'epochs'``.
+                - ``ref_channels`` (str|list): Reference channel(s) passed to
+                  ``mne.set_eeg_reference``. Default ``'average'``.
+
+        Returns:
+            Updated data dict with the instance re-referenced in-place.
+
+        Raises:
+            ValueError: If the requested instance is not present in ``data``.
+        """
         ref_channels = step_config.get('ref_channels', 'average')
         instance = step_config.get('instance', 'epochs')
 
@@ -1273,7 +1327,29 @@ class MEEGFlowPipeline:
         return data
 
     def _step_epoch(self, data: Dict[str, Any], step_config: Dict[str, Any]) -> Dict[str, Any]:
-        """Create epochs from raw data."""
+        """Create event-locked epochs from raw data.
+
+        Args:
+            data: Pipeline data dict. Must contain ``'raw'`` and ``'events'``.
+            step_config: Step parameters:
+                - ``event_id`` (dict|str): Event IDs to epoch around. Falls
+                  back to ``data['event_id']`` if not provided.
+                - ``tmin`` (float): Epoch start time relative to event.
+                  Default -0.2 s.
+                - ``tmax`` (float): Epoch end time relative to event.
+                  Default 0.5 s.
+                - ``baseline`` (tuple): Baseline correction window.
+                  Default ``(None, 0.0)``.
+                - ``reject`` (dict|None): Peak-to-peak rejection thresholds.
+                  Default ``None``.
+
+        Returns:
+            Updated data dict with ``data['epochs']`` set to the new
+            ``mne.Epochs`` object.
+
+        Raises:
+            ValueError: If ``'raw'`` or ``'events'`` are not in ``data``.
+        """
         if data.get('raw', None) is None or data.get('events', None) is None:
             raise ValueError("epoch step requires both 'raw' and 'events' in data")
 
@@ -1307,7 +1383,21 @@ class MEEGFlowPipeline:
         return data
 
     def _step_chunk_in_epoch(self, data: Dict[str, Any], step_config: Dict[str, Any]) -> Dict[str, Any]:
-        """Create epochs from raw data."""
+        """Segment raw data into fixed-length epochs (no events required).
+
+        Args:
+            data: Pipeline data dict. Must contain ``'raw'``.
+            step_config: Step parameters:
+                - ``duration`` (float): Length of each epoch in seconds.
+                  Default 1.
+
+        Returns:
+            Updated data dict with ``data['epochs']`` set to the new
+            fixed-length ``mne.Epochs`` object.
+
+        Raises:
+            ValueError: If ``'raw'`` is not in ``data``.
+        """
         if data.get('raw', None) is None:
             raise ValueError("epoch step requires 'raw' in data")
 
@@ -1386,7 +1476,30 @@ class MEEGFlowPipeline:
         return data
 
     def _step_find_bads_channels_threshold(self, data: Dict[str, Any], step_config: Dict[str, Any]) -> Dict[str, Any]:
-        """Find bad channels using threshold-based rejection."""
+        """Find bad channels that exceed amplitude thresholds across epochs.
+
+        Delegates to :func:`adaptive_reject.find_bads_channels_threshold` and
+        marks detected channels as bad in all instances listed in
+        ``step_config['apply_on']``.
+
+        Args:
+            data: Pipeline data dict. Must contain ``'epochs'``.
+            step_config: Step parameters:
+                - ``picks`` (list|None): Channel types to consider. Default all.
+                - ``excluded_channels`` (list|None): Channels to skip.
+                - ``reject`` (dict): Amplitude thresholds per channel type,
+                  e.g. ``{'eeg': 100e-6}``. Default ``{'eeg': 100e-6}``.
+                - ``n_epochs_bad_ch`` (float): Fraction of epochs in which a
+                  channel must exceed the threshold to be marked bad. Default 0.5.
+                - ``apply_on`` (list): Instances to mark bad channels on.
+                  Default ``['epochs']``.
+
+        Returns:
+            Updated data dict with bad channels added to ``info['bads']``.
+
+        Raises:
+            ValueError: If ``'epochs'`` or any ``apply_on`` instance is absent.
+        """
         if 'epochs' not in data:
             raise ValueError("find_bads_channels_threshold requires 'epochs' in data")
 
@@ -1426,7 +1539,31 @@ class MEEGFlowPipeline:
         return data
 
     def _step_find_bads_channels_variance(self, data: Dict[str, Any], step_config: Dict[str, Any]) -> Dict[str, Any]:
-        """Find bad channels using variance-based detection."""
+        """Find bad channels with abnormal variance using z-score outlier detection.
+
+        Delegates to :func:`adaptive_reject.find_bads_channels_variance` and
+        marks detected channels as bad in all instances listed in
+        ``step_config['apply_on']``.
+
+        Args:
+            data: Pipeline data dict. Must contain the key specified by
+                ``step_config['instance']`` (default ``'epochs'``).
+            step_config: Step parameters:
+                - ``instance`` (str): Data key to analyse. Default ``'epochs'``.
+                - ``picks`` (list|None): Channel types to consider. Default all.
+                - ``excluded_channels`` (list|None): Channels to skip.
+                - ``zscore_thresh`` (float): Z-score threshold. Default 4.
+                - ``max_iter`` (int): Maximum outlier-removal iterations.
+                  Default 2.
+                - ``apply_on`` (list): Instances to mark bad channels on.
+                  Defaults to ``[instance]``.
+
+        Returns:
+            Updated data dict with bad channels added to ``info['bads']``.
+
+        Raises:
+            ValueError: If the requested instance or any ``apply_on`` key is absent.
+        """
         # Check which instance to use
         instance = step_config.get('instance', 'epochs')
         if instance not in data:
@@ -1470,7 +1607,31 @@ class MEEGFlowPipeline:
         return data
 
     def _step_find_bads_channels_high_frequency(self, data: Dict[str, Any], step_config: Dict[str, Any]) -> Dict[str, Any]:
-        """Find bad channels using high-frequency variance."""
+        """Find bad channels with excessive high-frequency noise.
+
+        Applies a 25 Hz high-pass filter and identifies channels whose filtered
+        variance is a z-score outlier. Delegates to
+        :func:`adaptive_reject.find_bads_channels_high_frequency`.
+
+        Args:
+            data: Pipeline data dict. Must contain the key specified by
+                ``step_config['instance']`` (default ``'epochs'``).
+            step_config: Step parameters:
+                - ``instance`` (str): Data key to analyse. Default ``'epochs'``.
+                - ``picks`` (list|None): Channel types to consider. Default all.
+                - ``excluded_channels`` (list|None): Channels to skip.
+                - ``zscore_thresh`` (float): Z-score threshold. Default 4.
+                - ``max_iter`` (int): Maximum outlier-removal iterations.
+                  Default 2.
+                - ``apply_on`` (list): Instances to mark bad channels on.
+                  Defaults to ``[instance]``.
+
+        Returns:
+            Updated data dict with bad channels added to ``info['bads']``.
+
+        Raises:
+            ValueError: If the requested instance or any ``apply_on`` key is absent.
+        """
         # Check which instance to use
         instance = step_config.get('instance', 'epochs')
         if instance not in data:
@@ -1514,7 +1675,28 @@ class MEEGFlowPipeline:
         return data
 
     def _step_find_bads_epochs_threshold(self, data: Dict[str, Any], step_config: Dict[str, Any]) -> Dict[str, Any]:
-        """Find bad epochs using threshold-based rejection."""
+        """Drop epochs in which too many channels exceed amplitude thresholds.
+
+        Delegates to :func:`adaptive_reject.find_bads_epochs_threshold` and
+        drops the identified bad epochs in-place.
+
+        Args:
+            data: Pipeline data dict. Must contain ``'epochs'``.
+            step_config: Step parameters:
+                - ``picks`` (list|None): Channel types to consider. Default all.
+                - ``excluded_channels`` (list|None): Channels to skip.
+                - ``reject`` (dict): Amplitude thresholds per channel type.
+                  Default ``{'eeg': 100e-6}``.
+                - ``n_channels_bad_epoch`` (float): Fraction of channels that
+                  must exceed the threshold for an epoch to be dropped.
+                  Default 0.1.
+
+        Returns:
+            Updated data dict with bad epochs dropped from ``data['epochs']``.
+
+        Raises:
+            ValueError: If ``'epochs'`` is not in ``data``.
+        """
         if 'epochs' not in data:
             raise ValueError("find_bads_epochs_threshold requires 'epochs' in data")
 
@@ -1548,7 +1730,26 @@ class MEEGFlowPipeline:
         return data
 
     def _step_save_clean_instance(self, data: Dict[str, Any], step_config: Dict[str, Any]) -> Dict[str, Any]:
-        """Save clean epochs to a BIDS-derivatives-compatible path."""
+        """Save a preprocessed Raw or Epochs instance to the BIDS derivatives tree.
+
+        The output path follows BIDS conventions under the pipeline's
+        derivatives root, with ``processing=clean`` and ``description=cleaned``.
+
+        Args:
+            data: Pipeline data dict. Must contain the key named by
+                ``step_config['instance']`` (default ``'epochs'``).
+            step_config: Step parameters:
+                - ``instance`` (str): Key in ``data`` to save (``'raw'`` or
+                  ``'epochs'``). Default ``'epochs'``.
+                - ``overwrite`` (bool): Overwrite existing file. Default ``True``.
+
+        Returns:
+            Updated data dict with ``data['{instance}_file']`` set to the saved
+            path string.
+
+        Raises:
+            ValueError: If the requested instance is not in ``data``.
+        """
         instance = step_config.get('instance', 'epochs')
         overwrite = step_config.get('overwrite', True)
 
@@ -1584,7 +1785,21 @@ class MEEGFlowPipeline:
         return data
 
     def _step_generate_json_report(self, data: Dict[str, Any], step_config: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate JSON reports."""
+        """Write a JSON report of the preprocessing steps to the BIDS derivatives tree.
+
+        The report includes subject/task/session metadata, raw data properties,
+        and the full list of preprocessing steps recorded in
+        ``data['preprocessing_steps']``.
+
+        Args:
+            data: Pipeline data dict containing at minimum ``'subject'``,
+                ``'task'``, and ``'preprocessing_steps'``.
+            step_config: Currently unused; reserved for future options.
+
+        Returns:
+            Updated data dict with ``data['json_report']`` set to the output
+            path string.
+        """
 
         # JSON report
         report = {
@@ -1629,9 +1844,29 @@ class MEEGFlowPipeline:
         return data
 
     def _step_generate_html_report(self, data: Dict[str, Any], step_config: Dict[str, Any]) -> Dict[str, Any]:
-        
-        """Generate HTML reports."""
-        from report import (
+        """Generate an interactive HTML report of the preprocessing results.
+
+        Produces a self-contained HTML file in the BIDS derivatives tree that
+        includes a bad-channels topoplot, a preprocessing-steps table, and
+        optional raw/ICA comparison plots.
+
+        Args:
+            data: Pipeline data dict containing at minimum ``'subject'``,
+                ``'task'``, and ``'preprocessing_steps'``.
+            step_config: Step parameters:
+                - ``picks`` (list|None): Channel types for topoplot. Default all.
+                - ``excluded_channels`` (list|None): Channels to skip.
+                - ``outlines`` (str): Topoplot outline style. Default ``'head'``.
+                - ``compare_instances`` (list): Pairs of instance keys to
+                  compare in the report. Default ``[]``.
+                - ``plot_raw_kwargs`` (dict): Extra kwargs for raw plots.
+                - ``plot_ica_kwargs`` (dict): Extra kwargs for ICA plots.
+
+        Returns:
+            Updated data dict with ``data['html_report']`` set to the output
+            path string.
+        """
+        from .report import (
             collect_bad_channels_from_steps,
             create_bad_channels_topoplot,
             create_preprocessing_steps_table

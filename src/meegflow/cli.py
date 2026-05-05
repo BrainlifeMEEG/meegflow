@@ -142,6 +142,11 @@ def _parse_args():
     return parser.parse_args()
 
 def main():
+    """Entry point for the ``meegflow`` command-line tool.
+
+    Parses command-line arguments, configures MNE logging, builds a
+    ``MEEGFlowPipeline`` from the supplied YAML config, and runs it.
+    """
     args = _parse_args()
     
     # Configure logging
