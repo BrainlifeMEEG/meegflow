@@ -17,12 +17,12 @@ if requirements_file.exists():
 
 setup(
     name="meegflow",
-    version="0.1.0",
-    description="A modular, configuration-driven MEEG preprocessing pipeline using MNE-BIDS",
+    version=os.environ.get("MEEGFLOW_VERSION", "0.0.1"),
+    description="A modular, configuration-driven extensible M/EEG preprocessing pipeline using MNE-Python",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    author="MEEGFlow Team",
-    url="https://github.com/Laouen/nice-preprocessing",
+    author="Laouen Belloli",
+    url="https://github.com/Picnic-DoC/meegflow",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
     install_requires=requirements,
