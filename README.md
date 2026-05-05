@@ -2,6 +2,9 @@
 
 A modular, configuration-driven MEEG preprocessing pipeline using MNE-BIDS. The pipeline uses auxiliary functions for each preprocessing step, allowing you to choose which steps to run, their order, and their parameters through a simple YAML configuration.
 
+## Documentation
+https://picnic-doc.github.io/meegflow/
+
 ## Features
 
 - **Flexible File Discovery**: Support for both BIDS-formatted datasets and custom glob patterns
