@@ -136,7 +136,21 @@ def _find_outliers(X, threshold=3.0, max_iter=2, tail=0):
 
 
 def find_bads_channels_threshold(epochs, picks, reject, n_epochs_bad_ch=0.5):
+    """Identify bad channels that exceed amplitude thresholds in too many epochs.
 
+    A channel is marked bad when its peak-to-peak amplitude exceeds the
+    rejection threshold in more than ``n_epochs_bad_ch`` epochs.
+
+    Args:
+        epochs: MNE Epochs object to analyse.
+        picks: Channel indices to consider.
+        reject: Rejection thresholds by channel type, e.g. ``{'eeg': 150e-6}``.
+        n_epochs_bad_ch: Fraction (0–1) or absolute count of epochs in which a
+            channel must exceed the threshold to be marked bad. Default 0.5.
+
+    Returns:
+        List of channel names identified as bad.
+    """
     n_channels = len(picks)
     data = epochs.get_data()
     n_epochs = data.shape[0]
@@ -165,6 +179,21 @@ def find_bads_channels_threshold(epochs, picks, reject, n_epochs_bad_ch=0.5):
 
 
 def find_bads_channels_variance(inst, picks, zscore_thresh=4, max_iter=2):
+    """Identify bad channels with abnormally high or low variance.
+
+    Uses iterative z-score outlier detection on per-channel variance computed
+    across all time samples.
+
+    Args:
+        inst: MNE Raw or Epochs object.
+        picks: Channel indices to consider.
+        zscore_thresh: Z-score threshold above which a channel is considered an
+            outlier. Default 4.
+        max_iter: Maximum number of outlier-removal iterations. Default 2.
+
+    Returns:
+        List of channel names identified as bad.
+    """
     logger.info('Looking for bad channels with variance')
     if isinstance(inst, mne.Epochs):
         data = inst.get_data()
@@ -183,6 +212,21 @@ def find_bads_channels_variance(inst, picks, zscore_thresh=4, max_iter=2):
 
 
 def find_bads_channels_high_frequency(inst, picks, zscore_thresh=4, max_iter=2):
+    """Identify bad channels with excessive high-frequency noise.
+
+    Applies a 25 Hz high-pass Butterworth filter, then detects channels whose
+    standard deviation of filtered data is a z-score outlier.
+
+    Args:
+        inst: MNE Raw or Epochs object.
+        picks: Channel indices to consider.
+        zscore_thresh: Z-score threshold above which a channel is considered an
+            outlier. Default 4.
+        max_iter: Maximum number of outlier-removal iterations. Default 2.
+
+    Returns:
+        List of channel names identified as bad.
+    """
     logger.info('Looking for bad channels with high frequency variance')
     if isinstance(inst, mne.Epochs):
         data = inst.get_data()
@@ -207,6 +251,21 @@ def find_bads_channels_high_frequency(inst, picks, zscore_thresh=4, max_iter=2):
 
 
 def find_bads_epochs_threshold(epochs, picks, reject, n_channels_bad_epoch=0.1):
+    """Identify bad epochs in which too many channels exceed amplitude thresholds.
+
+    An epoch is marked bad when the number of channels exceeding the rejection
+    threshold is greater than ``n_channels_bad_epoch``.
+
+    Args:
+        epochs: MNE Epochs object to analyse.
+        picks: Channel indices to consider.
+        reject: Rejection thresholds by channel type, e.g. ``{'eeg': 150e-6}``.
+        n_channels_bad_epoch: Fraction (0–1) or absolute count of channels that
+            must exceed the threshold for an epoch to be rejected. Default 0.1.
+
+    Returns:
+        Array of epoch indices identified as bad.
+    """
     n_channels = len(picks)
     bad_ep_idx = np.ndarray((0,), dtype=int)
     if isinstance(n_channels_bad_epoch, float):

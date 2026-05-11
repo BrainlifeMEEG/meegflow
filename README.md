@@ -2,6 +2,9 @@
 
 A modular, configuration-driven MEEG preprocessing pipeline using MNE-BIDS. The pipeline uses auxiliary functions for each preprocessing step, allowing you to choose which steps to run, their order, and their parameters through a simple YAML configuration.
 
+## Documentation
+https://picnic-doc.github.io/meegflow/
+
 ## Features
 
 - **Flexible File Discovery**: Support for both BIDS-formatted datasets and custom glob patterns
@@ -45,18 +48,7 @@ docker run --rm -v /path/to/bids/data:/data meegflow \
 
 1. Clone this repository:
 ```bash
-git clone https://github.com/Laouen/meegflow.git
-cd meegflow
-```
-
-2. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-3. (Optional) Install the package to use the `meegflow` command:
-```bash
-pip install -e .
+pip install meegflow
 ```
 
 ## Usage

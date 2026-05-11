@@ -65,8 +65,8 @@ import json
 import yaml
 from pathlib import Path
 from mne.utils import logger, set_log_file, set_log_level
-from meegflow import MEEGFlowPipeline
-from utils import NpEncoder
+from .pipeline import MEEGFlowPipeline
+from .utils import NpEncoder
 
 def _parse_args():
     parser = argparse.ArgumentParser(description='Run MEEG preprocessing pipeline on one or more subjects.')
@@ -142,6 +142,11 @@ def _parse_args():
     return parser.parse_args()
 
 def main():
+    """Entry point for the ``meegflow`` command-line tool.
+
+    Parses command-line arguments, configures MNE logging, builds a
+    ``MEEGFlowPipeline`` from the supplied YAML config, and runs it.
+    """
     args = _parse_args()
     
     # Configure logging

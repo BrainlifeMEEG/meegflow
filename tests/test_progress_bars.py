@@ -23,23 +23,26 @@ sys.path.insert(0, str(src_dir))
 
 
 def test_progress_bar_imports():
-    """Test that rich progress bar imports are present."""
-    from meegflow import Progress, SpinnerColumn, TextColumn, BarColumn
-    
-    print("✓ Rich progress bar components imported successfully")
+    """Test that rich progress bar components are used in the pipeline."""
+    from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
+    from meegflow import MEEGFlowPipeline
+    import inspect
+    source = inspect.getsource(MEEGFlowPipeline)
+    assert "Progress" in source, "Pipeline should use rich Progress"
+    print("✓ Rich progress bar components used in pipeline")
 
 
 def test_logger_import():
     """Test that MNE logger is imported."""
-    from meegflow import logger
-    from cli import logger as cli_logger
+    from mne.utils import logger
+    from meegflow.cli import logger as cli_logger
     
     print("✓ MNE logger imported in pipeline and CLI")
 
 
 def test_cli_log_file_argument():
     """Test that CLI has log file argument."""
-    from cli import _parse_args
+    from meegflow.cli import _parse_args
     import argparse
     
     # Mock sys.argv to test argument parsing

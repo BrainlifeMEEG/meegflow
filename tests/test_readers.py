@@ -70,7 +70,7 @@ def create_mock_glob_dataset(data_root):
 def test_bids_reader_basic():
     """Test BIDSReader basic functionality."""
     try:
-        from readers import BIDSReader
+        from meegflow.readers import BIDSReader
         
         with tempfile.TemporaryDirectory() as tmpdir:
             bids_root = create_mock_bids_dataset(tmpdir)
@@ -100,7 +100,7 @@ def test_bids_reader_basic():
 def test_bids_reader_filtering():
     """Test BIDSReader filtering by subject and task."""
     try:
-        from readers import BIDSReader
+        from meegflow.readers import BIDSReader
         
         with tempfile.TemporaryDirectory() as tmpdir:
             bids_root = create_mock_bids_dataset(tmpdir)
@@ -129,7 +129,7 @@ def test_bids_reader_filtering():
 def test_glob_reader_variable_extraction():
     """Test GlobReader extracts variables correctly."""
     try:
-        from readers import GlobReader
+        from meegflow.readers import GlobReader
         
         with tempfile.TemporaryDirectory() as tmpdir:
             data_root = create_mock_glob_dataset(tmpdir)
@@ -151,7 +151,7 @@ def test_glob_reader_variable_extraction():
 def test_glob_reader_find_recordings():
     """Test GlobReader finds recordings correctly."""
     try:
-        from readers import GlobReader
+        from meegflow.readers import GlobReader
         
         with tempfile.TemporaryDirectory() as tmpdir:
             data_root = create_mock_glob_dataset(tmpdir)
@@ -184,7 +184,7 @@ def test_glob_reader_find_recordings():
 def test_glob_reader_filtering():
     """Test GlobReader filtering by criteria."""
     try:
-        from readers import GlobReader
+        from meegflow.readers import GlobReader
         
         with tempfile.TemporaryDirectory() as tmpdir:
             data_root = create_mock_glob_dataset(tmpdir)
@@ -219,7 +219,7 @@ def test_glob_reader_filtering():
 def test_glob_reader_regex_pattern():
     """Test GlobReader creates correct regex pattern."""
     try:
-        from readers import GlobReader
+        from meegflow.readers import GlobReader
         
         pattern = "data/sub-{subject}/task-{task}.vhdr"
         reader = GlobReader("/tmp", pattern)
@@ -241,7 +241,7 @@ def test_glob_reader_regex_pattern():
 def test_readers_consistent_interface():
     """Test that BIDSReader and GlobReader return consistent data structures."""
     try:
-        from readers import BIDSReader, GlobReader
+        from meegflow.readers import BIDSReader, GlobReader
         
         with tempfile.TemporaryDirectory() as tmpdir:
             # Test BIDSReader
