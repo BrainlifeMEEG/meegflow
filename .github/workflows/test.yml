@@ -2,9 +2,9 @@ name: Run Tests
 
 on:
   push:
-    branches: [ main, master, develop ]
+    branches: [ main, dev ]
   pull_request:
-    branches: [ main, master, develop ]
+    branches: [ main, dev ]
 
 jobs:
   test:
@@ -13,78 +13,22 @@ jobs:
       contents: read
     strategy:
       matrix:
-        python-version: ['3.11']
-    
+        python-version: ['3.11', '3.12']
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
-    
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
-    
-    - name: Run structure tests
-      run: |
-        echo "Running pipeline structure tests..."
-        python tests/test_pipeline_structure.py
-    
-    - name: Run CLI separation tests
-      run: |
-        echo "Running CLI separation tests..."
-        python tests/test_cli_separation.py
-    
-    - name: Run adaptive reject integration tests
-      run: |
-        echo "Running adaptive reject integration tests..."
-        python tests/test_adaptive_reject_integration.py
-    
-    - name: Run adaptive reject functional tests
-      run: |
-        echo "Running adaptive reject functional tests..."
-        python tests/test_adaptive_reject_functional.py
-      
-    - name: Run excluded channels integration tests
-      run: |
-        echo "Running excluded channels integration tests..."
-        python tests/test_excluded_channels_integration.py
+        pip install -e .
+        pip install pytest
 
-    - name: Run excluded channels tests
-      run: |
-        echo "Running excluded channels tests..."
-        python tests/test_excluded_channels.py
-
-    - name: Run find matching paths integration tests
-      run: |
-        echo "Running find matching paths integration tests..."
-        python tests/test_find_matching_paths_integration.py
-
-    - name: Run HTML report enhancements tests
-      run: |
-        echo "Running HTML report enhancements tests..."
-        python tests/test_html_report_enhancements.py
-
-    - name: Run progress bars tests
-      run: |
-        echo "Running progress bars tests..."
-        python tests/test_progress_bars.py
-
-    - name: Run report module tests
-      run: |
-        echo "Running report module tests..."
-        python tests/test_report_module.py
-
-    - name: Run find flat channels
-      run: |
-        echo "Running find flat channels tests..."
-        python tests/test_find_flat_channels.py
-
-    - name: Test summary
-      if: always()
-      run: |
-        echo "Test execution completed"
+    - name: Run tests
+      run: pytest tests/ -v --tb=short

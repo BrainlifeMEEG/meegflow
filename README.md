@@ -2,6 +2,9 @@
 
 A modular, configuration-driven MEEG preprocessing pipeline using MNE-BIDS. The pipeline uses auxiliary functions for each preprocessing step, allowing you to choose which steps to run, their order, and their parameters through a simple YAML configuration.
 
+## Documentation
+https://picnic-doc.github.io/meegflow/
+
 ## Features
 
 - **Flexible File Discovery**: Support for both BIDS-formatted datasets and custom glob patterns
@@ -9,14 +12,11 @@ A modular, configuration-driven MEEG preprocessing pipeline using MNE-BIDS. The 
 - **Modular Design**: Each preprocessing step is a separate function
 - **Configuration-Driven**: Choose steps, their order, and parameters via YAML
 - **Custom Steps Support**: Extend the pipeline with your own preprocessing functions
-- **Progress Tracking**: Rich progress bars show real-time progress for recordings and preprocessing steps
+- **Progress Tracking**: Rich progress bars show real-time progress for recordings (per-recording log lines when running in parallel)
 - **Comprehensive Logging**: MNE logger integration with optional log file output
-- **Multiple Output Formats**:
-  - Clean preprocessed epochs in `.fif` format
-  - Clean preprocessed raw data in `.fif` format
-  - Interactive HTML reports using MNE Report
-  - JSON reports for easy downstream processing
-- **Batch Processing**: Process multiple subjects sequentially
+- **Multiple Output Formats**: Save preprocessed data in `.fif`, `.pkl` (pickle), `.h5` (HDF5), or `.npy` (NumPy) format via the `save_clean_instance` step, plus interactive HTML and JSON reports
+- **Modular Architecture**: Savers, readers, and pipeline steps are each in their own module for easy extension
+- **Batch Processing**: Process multiple subjects sequentially (default) or in parallel via Dask — locally, or on a Slurm/PBS/SGE/LSF/HTCondor cluster
 - **Command-line Interface**: Easy to use from the terminal
 
 ## Installation
@@ -45,18 +45,7 @@ docker run --rm -v /path/to/bids/data:/data meegflow \
 
 1. Clone this repository:
 ```bash
-git clone https://github.com/Laouen/meegflow.git
-cd meegflow
-```
-
-2. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-3. (Optional) Install the package to use the `meegflow` command:
-```bash
-pip install -e .
+pip install meegflow
 ```
 
 ## Usage
@@ -154,10 +143,8 @@ python src/cli.py \
 You can also use the pipeline directly in Python:
 
 ```python
-import sys
-sys.path.insert(0, 'src')
 from meegflow import MEEGFlowPipeline
-from readers import BIDSReader
+from meegflow.readers import BIDSReader
 
 # Load configuration
 import yaml
@@ -223,7 +210,7 @@ python src/cli.py \
 **Python API:**
 
 ```python
-from readers import GlobReader
+from meegflow.readers import GlobReader
 
 # Create a glob reader with your custom pattern
 reader = GlobReader(
@@ -241,7 +228,7 @@ pipeline = MEEGFlowPipeline(
 results = pipeline.run_pipeline(subjects=['01', '02'], tasks='rest')
 ```
 
-For detailed information on readers, pattern examples, and troubleshooting, see [READERS.md](READERS.md).
+For detailed information on readers, pattern examples, and troubleshooting, see the [Readers documentation](docs/usage/readers.md).
 
 ## Output Structure
 
@@ -256,7 +243,7 @@ derivatives/meegflow/
 ├── raw/                 # When saving raw data with save_clean_instance
 │   └── sub-01/
 │       └── eeg/
-│           └── sub-01_task-rest_proc-clean_desc-cleaned_epo.fif
+│           └── sub-01_task-rest_proc-clean_desc-cleaned_eeg.fif
 └── reports/
     └── sub-01/
         └── eeg/
@@ -285,6 +272,7 @@ Data Organization:
 - **strip_recording**: Crop recordings to remove data outside the first and last events
 - **concatenate_recordings**: Concatenate multiple raw recordings into a single continuous recording
 - **copy_instance**: Create a copy of a data instance for comparison or backup purposes
+- **call_module**: Dynamically call any importable function or method on a pipeline object (MNE, NumPy, or any library) and store the result in the pipeline data dict — a lightweight escape hatch for one-off calls that don't warrant a custom step. Supports positional args, `data__` references to pipeline objects, method calls via `target`, and multi-value unpacking via `unpack_as`
 
 Setup:
 - **set_montage**: Set channel montage for EEG data
@@ -466,6 +454,7 @@ Additional example configurations available in `configs/`:
 - `config_with_drop_bad_channels.yaml` - Example using drop_bad_channels instead of interpolation
 - `config_with_excluded_channels.yaml` - Example using excluded_channels parameter to preserve reference channels
 - `config_with_custom_steps.yaml` - Example showing how to integrate custom preprocessing steps
+- `config_with_parallel_execution.yaml` - Example enabling parallel recording execution via Dask (see [Parallel Execution with Dask](#parallel-execution-with-dask))
 
 ## Command-Line Arguments
 
@@ -479,12 +468,12 @@ These arguments use the same matching logic as `mne-bids` `find_matching_paths`.
 - `--sessions`: Session ID(s) to process, space-separated
 - `--tasks`: Task name(s) to process, space-separated (e.g., `--tasks rest task1`)
 - `--acquisitions`: Acquisition parameter(s) to process
-- `--runs`: Run number(s) to process
 - `--extension`: File extension to process (default: `.vhdr`)
 
 ### Other Arguments
 - `--output-root`: Custom output path (optional, defaults to `bids-root/derivatives/meegflow`)
 - `--config`: Path to YAML configuration file (optional)
+- `--io-backend`: MNE IO backend function used to read files (default: `read_raw_bids`)
 - `--log-file`: Path to log file (optional, defaults to console output)
 - `--log-level`: Logging level - DEBUG, INFO, WARNING, or ERROR (optional, default: INFO)
 
@@ -796,7 +785,7 @@ Find bad channels using variance-based detection. Identifies channels with abnor
 - `max_iter`: Maximum iterations for iterative outlier removal (default: 2)
 - `apply_on`: List of instances to mark bad channels on (default: [instance])
 
-### 15. find_bads_channels_high_frequency
+### 16. find_bads_channels_high_frequency
 Find bad channels using high-frequency variance. Detects channels with excessive high-frequency noise.
 - `instance`: Which data instance to use - 'raw' or 'epochs' (default: 'epochs')
 - `picks`: Channel indices to check (optional, default: EEG channels)
@@ -805,26 +794,43 @@ Find bad channels using high-frequency variance. Detects channels with excessive
 - `max_iter`: Maximum iterations for iterative outlier removal (default: 2)
 - `apply_on`: List of instances to mark bad channels on (default: [instance])
 
-### 16. find_bads_epochs_threshold
+### 17. find_bads_epochs_threshold
 Find and remove bad epochs using threshold-based rejection. Drops epochs that have too many bad channels.
 - `picks`: Channel indices to check (optional, default: EEG channels)
 - `excluded_channels`: List of channel names to exclude from epoch rejection criteria (optional)
 - `reject`: Rejection thresholds by channel type (e.g., `{"eeg": 150e-6}`)
 - `n_channels_bad_epoch`: Fraction or number of channels that must be bad for an epoch to be rejected (default: 0.1)
 
-### 17. save_clean_instance
-Save clean raw or epochs data to .fif file in BIDS-derivatives format.
-- `instance`: Which data instance to save - 'raw' or 'epochs' (default: 'epochs')
-- `overwrite`: Whether to overwrite existing files (default: true)
+### 18. save_clean_instance
+Save a preprocessed MNE object to the BIDS derivatives tree. The output path follows BIDS conventions and the format is configurable. Supported formats are handled by `meegflow/savers.py`.
+- `instance`: Key in the pipeline data dict to save — typically `'raw'` or `'epochs'` (default: `'epochs'`)
+- `format`: Output format — `'fif'` (default for MNE objects), `'pickle'`, `'hdf5'`, or `'numpy'` (default for other objects: `'pickle'`). Auto-detected from the object type if omitted.
+- `overwrite`: Whether to overwrite existing files (default: `true`)
+- `processing`: BIDS `proc` entity for the output path (optional)
+- `description`: BIDS `desc` entity for the output path (optional)
+- `datatype`: BIDS datatype subfolder (optional)
+- `suffix`: BIDS suffix — defaults to `'epo'` for epochs and `'eeg'` for raw (optional)
+- `extension`: File extension — inferred from `format` if omitted (optional)
 
-### 18. generate_json_report
+**Example with explicit format:**
+```yaml
+- name: save_clean_instance
+  instance: epochs
+  format: hdf5
+  overwrite: true
+  processing: clean
+  description: preprocessed
+```
+
+### 19. generate_json_report
 Generate JSON report with preprocessing information. No parameters needed.
 
-### 19. generate_html_report
+### 20. generate_html_report
 Generate HTML report with interactive visualizations.
 - `picks`: Channel types to include in plots (optional, default: EEG channels)
 - `excluded_channels`: List of channel names to exclude from plots (optional)
 - `compare_instances`: List of instance comparisons to plot (optional, see config_minimal.yaml for example)
+- `n_time_points`: Number of time points shown in evoked plots (optional, default: MNE default)
 - `plot_raw_kwargs`: Additional keyword arguments for raw data plots (optional, dict)
 - `plot_ica_kwargs`: Additional keyword arguments for ICA plots (optional, dict)
 - `plot_events_kwargs`: Additional keyword arguments for event plots (optional, dict)
@@ -833,7 +839,7 @@ Generate HTML report with interactive visualizations.
 
 ## Batch Processing
 
-The pipeline processes multiple subjects and files sequentially. You can process:
+By default, the pipeline processes multiple subjects and files **sequentially**, in a single process:
 
 ```bash
 # Process specific subjects with a specific task
@@ -856,7 +862,44 @@ python src/cli.py \
     --tasks rest
 ```
 
-For HPC/cluster environments, you can create your own SLURM or other batch submission scripts that call the pipeline with subject lists.
+### Parallel Execution with Dask
+
+To process recordings in parallel instead, add an `execution` block to your YAML
+config — one full pipeline run per recording is dispatched as a separate Dask
+job. This is entirely opt-in: omitting `execution` (or setting
+`backend: sequential`) keeps today's single-process behavior.
+
+```yaml
+execution:
+  backend: local     # sequential (default) | local | slurm | pbs | sge | lsf | htcondor
+  n_workers: 4
+```
+
+- `local` runs an in-process Dask cluster (comparable to
+  `ProcessPoolExecutor`/`joblib`) — good for a multi-core workstation.
+- `slurm` / `pbs` / `sge` / `lsf` / `htcondor` submit one Dask worker job per
+  HPC scheduler job via [`dask-jobqueue`](https://jobqueue.dask.org/), for
+  running on a cluster. Pass scheduler-specific parameters (queue, cores,
+  memory, walltime, ...) via `cluster_kwargs`:
+
+```yaml
+execution:
+  backend: slurm
+  n_workers: 8
+  cluster_kwargs:
+    queue: normal
+    cores: 4
+    memory: 16GB
+    walltime: "02:00:00"
+```
+
+Parallel backends require the optional `dask` (for `local`) or
+`dask-jobqueue` (for the HPC backends) extras — see [Installation](#installation).
+`custom_steps_folder`, if used, must be on a filesystem reachable from every
+worker (trivially true for `local`; for `dask-jobqueue`, it must be a shared
+filesystem also mounted on the compute nodes).
+
+See `docs/dask_parallel_execution.md` for the full design rationale.
 
 ## Progress Tracking and Logging
 
@@ -864,15 +907,17 @@ The pipeline includes comprehensive progress tracking and logging features:
 
 ### Progress Bars
 
-When running the pipeline, you'll see two levels of progress bars:
-1. **Overall progress**: Shows progress across all recordings being processed
-2. **Step progress**: Shows progress through preprocessing steps for each recording
-
-The progress bars use the `rich` library and display:
+The sequential backend (today's default) shows a `rich` progress bar with:
 - Spinner animation
-- Progress bar with percentage
+- Progress across all recordings being processed, with percentage
 - Time remaining estimate
-- Current step being executed
+- The recording currently being processed
+
+Parallel backends (`local` and `dask-jobqueue`) instead log one line per
+recording as it's submitted/completed/failed (a live, in-place-updating
+progress bar can't meaningfully represent state changing in other
+processes or on other machines), plus a Dask dashboard link for the
+richer live view Dask itself provides.
 
 ### Logging
 
@@ -944,6 +989,7 @@ The Docker image includes several pre-configured pipeline examples in `/app/conf
 - `/app/configs/config_with_drop_bad_channels.yaml` - Pipeline using drop_bad_channels instead of interpolation
 - `/app/configs/config_with_excluded_channels.yaml` - Pipeline demonstrating excluded_channels parameter
 - `/app/configs/config_with_custom_steps.yaml` - Example template for using custom preprocessing steps
+- `/app/configs/config_with_parallel_execution.yaml` - Example enabling parallel recording execution via Dask
 
 Example using a built-in config:
 ```bash
@@ -985,6 +1031,11 @@ Note: This disables SSL verification for PyPI and should only be used in trusted
 - rich >= 13.0.0
 - matplotlib >= 3.7.0 (recommended)
 - pandas >= 2.0.0 (recommended)
+
+Optional, for parallel execution (`pip install meegflow[dask]` /
+`meegflow[dask-jobqueue]`):
+- dask[distributed] >= 2024.1.0
+- dask-jobqueue >= 0.8.2 (Slurm/PBS/SGE/LSF/HTCondor backends only)
 
 ## License
 

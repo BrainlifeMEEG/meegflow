@@ -1,0 +1,81 @@
+site_name: MEEGFlow
+site_description: A modular, configuration-driven MEEG preprocessing pipeline using MNE-Python
+site_url: https://picnic-doc.github.io/meegflow
+repo_url: https://github.com/Picnic-DoC/meegflow
+repo_name: Picnic-DoC/meegflow
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+    - content.code.annotate
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            members_order: source
+            separate_signature: true
+            filters: ["!^_[^_]"]   # hide private methods, keep __init__
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Usage:
+      - Command Line: usage/cli.md
+      - Python API: usage/api.md
+      - Configuration Reference: usage/configuration.md
+      - Readers: usage/readers.md
+      - Parallel Execution: usage/parallel-execution.md
+  - API Reference:
+      - Pipeline: api/pipeline.md
+      - Execution: api/execution.md
+      - Readers: api/readers.md
+      - CLI: api/cli.md
+      - Report: api/report.md
+      - Visualization: api/viz.md
+  - Contributing: contributing.md

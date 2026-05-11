@@ -37,6 +37,7 @@ def test_run_pipeline_signature():
             'sessions',
             'tasks',
             'acquisitions',
+            'runs',
             'extension',
         ]
         
@@ -51,7 +52,7 @@ def test_run_pipeline_signature():
 
 def test_cli_passes_correct_arguments():
     """Test that CLI passes the correct arguments to run_pipeline."""
-    cli_file = src_dir / "cli.py"
+    cli_file = src_dir / "meegflow" / "cli.py"
     with open(cli_file, 'r') as f:
         code = f.read()
     
@@ -59,17 +60,18 @@ def test_cli_passes_correct_arguments():
     assert "subjects=args.subjects" in code, "subjects parameter not passed to run_pipeline"
     assert "tasks=args.tasks" in code, "tasks parameter not passed to run_pipeline"
     assert "sessions=args.sessions" in code, "sessions parameter not passed to run_pipeline"
+    assert "runs=args.runs" in code, "runs parameter not passed to run_pipeline"
     
     print("✓ CLI passes correct arguments to run_pipeline")
 
 
 def test_cli_has_new_arguments():
-    """Test that CLI has the new arguments."""
-    cli_file = src_dir / "cli.py"
+    """Test that CLI has the expected arguments."""
+    cli_file = src_dir / "meegflow" / "cli.py"
     with open(cli_file, 'r') as f:
         code = f.read()
-    
-    # Check for new arguments
+
+    # Check for expected arguments
     expected_args = [
         '--bids-root',
         '--output-root',
@@ -79,7 +81,8 @@ def test_cli_has_new_arguments():
         '--acquisitions',
         '--runs',
         '--extension',
-        '--config', 
+        '--io-backend',
+        '--config',
         '--log-file',
         '--log-level',
     ]
@@ -126,9 +129,26 @@ def test_tasks_parameter_accepts_none():
         raise
 
 
+def test_runs_parameter_accepts_none():
+    """Test that runs parameter can be None."""
+    try:
+        from meegflow import MEEGFlowPipeline
+        import inspect
+
+        sig = inspect.signature(MEEGFlowPipeline.run_pipeline)
+        runs_param = sig.parameters['runs']
+
+        assert runs_param.default is None, "runs parameter should default to None"
+
+        print("✓ runs parameter accepts None (processes all runs)")
+    except ImportError as e:
+        print(f"⚠ Skipping test (missing dependencies): {e}")
+        raise
+
+
 def test_cli_subjects_not_required():
     """Test that --subjects is not required in CLI."""
-    cli_file = src_dir / "cli.py"
+    cli_file = src_dir / "meegflow" / "cli.py"
     with open(cli_file, 'r') as f:
         code = f.read()
     
@@ -166,6 +186,7 @@ def run_all_tests():
         test_cli_has_new_arguments,
         test_subjects_parameter_accepts_none,
         test_tasks_parameter_accepts_none,
+        test_runs_parameter_accepts_none,
         test_cli_subjects_not_required,
     ]
     

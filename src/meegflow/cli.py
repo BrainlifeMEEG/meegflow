@@ -49,7 +49,7 @@ Optional filters (if not specified, all matching files are processed):
   --sessions          Session ID(s) to process
   --tasks             Task name(s) to process
   --acquisitions      Acquisition parameter(s) to process
-  --runs              Run number(s) to process
+  --runs              Run ID(s) to process
   --extension         File extension (default: .vhdr)
 
 Other options:
@@ -65,8 +65,8 @@ import json
 import yaml
 from pathlib import Path
 from mne.utils import logger, set_log_file, set_log_level
-from meegflow import MEEGFlowPipeline
-from utils import NpEncoder
+from .pipeline import MEEGFlowPipeline
+from .utils import NpEncoder
 
 def _parse_args():
     parser = argparse.ArgumentParser(description='Run MEEG preprocessing pipeline on one or more subjects.')
@@ -122,7 +122,7 @@ def _parse_args():
         '--runs',
         nargs='+',
         required=False,
-        help='Run number(s) to process.'
+        help='Run ID(s) to process. Provide multiple run IDs separated by spaces e.g. --runs 01 02. If not provided, all runs will be processed.'
     )
     parser.add_argument(
         '--extension',
@@ -142,6 +142,11 @@ def _parse_args():
     return parser.parse_args()
 
 def main():
+    """Entry point for the ``meegflow`` command-line tool.
+
+    Parses command-line arguments, configures MNE logging, builds a
+    ``MEEGFlowPipeline`` from the supplied YAML config, and runs it.
+    """
     args = _parse_args()
     
     # Configure logging
@@ -168,7 +173,7 @@ def main():
         logger.info(f"Using BIDS reader")
         logger.info(f"BIDS root: {args.bids_root}")
         
-        from readers import BIDSReader
+        from .readers import BIDSReader
         reader = BIDSReader(args.bids_root)
         
     elif args.reader == 'glob':
@@ -183,7 +188,7 @@ def main():
         logger.info(f"Data root: {args.data_root}")
         logger.info(f"Glob pattern: {args.glob_pattern}")
         
-        from readers import GlobReader
+        from .readers import GlobReader
         reader = GlobReader(args.data_root, args.glob_pattern)
     
     if args.output_root:
@@ -205,6 +210,7 @@ def main():
         sessions=args.sessions,
         tasks=args.tasks,
         acquisitions=args.acquisitions,
+        runs=args.runs,
         extension=args.extension,
         io_backend=args.io_backend
     )

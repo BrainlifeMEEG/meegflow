@@ -19,14 +19,14 @@ src_dir = repo_root / "src"
 
 def test_cli_file_exists():
     """Test that the CLI file exists."""
-    cli_file = src_dir / "cli.py"
+    cli_file = src_dir / "meegflow" / "cli.py"
     assert cli_file.exists(), "CLI file does not exist"
     print("✓ CLI file exists")
 
 
 def test_cli_has_main_function():
     """Test that the CLI file has a main function."""
-    cli_file = src_dir / "cli.py"
+    cli_file = src_dir / "meegflow" / "cli.py"
     with open(cli_file, 'r') as f:
         code = f.read()
     
@@ -37,7 +37,7 @@ def test_cli_has_main_function():
 
 def test_cli_has_arg_parser():
     """Test that the CLI file has argument parser."""
-    cli_file = src_dir / "cli.py"
+    cli_file = src_dir / "meegflow" / "cli.py"
     with open(cli_file, 'r') as f:
         code = f.read()
     
@@ -51,18 +51,18 @@ def test_cli_has_arg_parser():
 
 def test_cli_imports_pipeline():
     """Test that the CLI imports the MEEGFlowPipeline."""
-    cli_file = src_dir / "cli.py"
+    cli_file = src_dir / "meegflow" / "cli.py"
     with open(cli_file, 'r') as f:
         code = f.read()
     
-    assert "from meegflow import MEEGFlowPipeline" in code, \
+    assert "MEEGFlowPipeline" in code, \
         "CLI does not import MEEGFlowPipeline"
     print("✓ CLI imports MEEGFlowPipeline")
 
 
 def test_pipeline_has_no_cli_code():
     """Test that the pipeline file does not contain CLI code."""
-    pipeline_file = src_dir / "meegflow.py"
+    pipeline_file = src_dir / "meegflow" / "pipeline.py"
     with open(pipeline_file, 'r') as f:
         code = f.read()
     
@@ -80,7 +80,7 @@ def test_pipeline_has_no_cli_code():
 
 def test_pipeline_has_class():
     """Test that the pipeline file still has the MEEGFlowPipeline class."""
-    pipeline_file = src_dir / "meegflow.py"
+    pipeline_file = src_dir / "meegflow" / "pipeline.py"
     with open(pipeline_file, 'r') as f:
         code = f.read()
     
@@ -109,7 +109,7 @@ def test_setup_has_entry_point():
 
 def test_api_import_structure():
     """Test that the API import structure is correct."""
-    pipeline_file = src_dir / "meegflow.py"
+    pipeline_file = src_dir / "meegflow" / "pipeline.py"
     
     with open(pipeline_file, 'r') as f:
         tree = ast.parse(f.read())
@@ -127,7 +127,7 @@ def test_api_import_structure():
 
 def test_cli_import_structure():
     """Test that the CLI import structure is correct."""
-    cli_file = src_dir / "cli.py"
+    cli_file = src_dir / "meegflow" / "cli.py"
     
     with open(cli_file, 'r') as f:
         tree = ast.parse(f.read())

@@ -69,7 +69,7 @@ def test_pipeline_with_bids_reader():
     """Test that pipeline works with BIDSReader."""
     try:
         from meegflow import MEEGFlowPipeline
-        from readers import BIDSReader
+        from meegflow.readers import BIDSReader
         
         with tempfile.TemporaryDirectory() as tmpdir:
             bids_root = create_mock_bids_dataset(tmpdir)
@@ -102,7 +102,7 @@ def test_pipeline_with_glob_reader():
     """Test that pipeline works with GlobReader."""
     try:
         from meegflow import MEEGFlowPipeline
-        from readers import GlobReader
+        from meegflow.readers import GlobReader
         
         with tempfile.TemporaryDirectory() as tmpdir:
             data_root = create_mock_glob_dataset(tmpdir)
@@ -140,7 +140,7 @@ def test_pipeline_with_glob_reader():
 def test_readers_return_compatible_structure():
     """Test that both readers return the same data structure."""
     try:
-        from readers import BIDSReader, GlobReader
+        from meegflow.readers import BIDSReader, GlobReader
         
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create BIDS dataset

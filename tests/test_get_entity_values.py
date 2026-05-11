@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Tests for _get_entity_values function in MEEGFlowPipeline.
+Tests for the _get_entity_values method on BIDSReader.
 
 This test verifies that:
 1. _get_entity_values returns the input value when it's a string
@@ -51,14 +51,14 @@ def test_get_entity_values_with_string():
     """Test that _get_entity_values returns a list when given a string."""
     try:
         from meegflow import MEEGFlowPipeline
-        from readers import BIDSReader
+        from meegflow.readers import BIDSReader
         
         with tempfile.TemporaryDirectory() as tmpdir:
             bids_root = Path(tmpdir)
             reader = BIDSReader(bids_root)
             pipeline = MEEGFlowPipeline(reader=reader, config={})
             
-            result = pipeline._get_entity_values('subject', '01')
+            result = reader._get_entity_values('subject', '01')
             assert result == ['01'], f"Expected ['01'], got {result}"
             
         print("✓ _get_entity_values correctly handles string input")
@@ -71,14 +71,14 @@ def test_get_entity_values_with_list():
     """Test that _get_entity_values returns the list when given a list."""
     try:
         from meegflow import MEEGFlowPipeline
-        from readers import BIDSReader
+        from meegflow.readers import BIDSReader
         
         with tempfile.TemporaryDirectory() as tmpdir:
             bids_root = Path(tmpdir)
             reader = BIDSReader(bids_root)
             pipeline = MEEGFlowPipeline(reader=reader, config={})
             
-            result = pipeline._get_entity_values('subject', ['01', '02', '03'])
+            result = reader._get_entity_values('subject', ['01', '02', '03'])
             assert result == ['01', '02', '03'], f"Expected ['01', '02', '03'], got {result}"
             
         print("✓ _get_entity_values correctly handles list input")
@@ -91,14 +91,14 @@ def test_get_entity_values_with_none_returns_all_subjects():
     """Test that _get_entity_values returns all subjects when input is None."""
     try:
         from meegflow import MEEGFlowPipeline
-        from readers import BIDSReader
+        from meegflow.readers import BIDSReader
         
         with tempfile.TemporaryDirectory() as tmpdir:
             bids_root = create_mock_bids_dataset(tmpdir)
             reader = BIDSReader(bids_root)
             pipeline = MEEGFlowPipeline(reader=reader, config={})
             
-            result = pipeline._get_entity_values('subject', None)
+            result = reader._get_entity_values('subject', None)
             assert isinstance(result, list), f"Expected list, got {type(result)}"
             assert set(result) == {'01', '02', '03'}, f"Expected {{'01', '02', '03'}}, got {set(result)}"
             
@@ -112,14 +112,14 @@ def test_get_entity_values_with_none_returns_all_tasks():
     """Test that _get_entity_values returns all tasks when input is None."""
     try:
         from meegflow import MEEGFlowPipeline
-        from readers import BIDSReader
+        from meegflow.readers import BIDSReader
         
         with tempfile.TemporaryDirectory() as tmpdir:
             bids_root = create_mock_bids_dataset(tmpdir)
             reader = BIDSReader(bids_root)
             pipeline = MEEGFlowPipeline(reader=reader, config={})
             
-            result = pipeline._get_entity_values('task', None)
+            result = reader._get_entity_values('task', None)
             assert isinstance(result, list), f"Expected list, got {type(result)}"
             assert set(result) == {'rest', 'task1'}, f"Expected {{'rest', 'task1'}}, got {set(result)}"
             
@@ -133,14 +133,14 @@ def test_get_entity_values_with_none_returns_all_sessions():
     """Test that _get_entity_values returns all sessions when input is None."""
     try:
         from meegflow import MEEGFlowPipeline
-        from readers import BIDSReader
+        from meegflow.readers import BIDSReader
         
         with tempfile.TemporaryDirectory() as tmpdir:
             bids_root = create_mock_bids_dataset(tmpdir)
             reader = BIDSReader(bids_root)
             pipeline = MEEGFlowPipeline(reader=reader, config={})
             
-            result = pipeline._get_entity_values('session', None)
+            result = reader._get_entity_values('session', None)
             assert isinstance(result, list), f"Expected list, got {type(result)}"
             assert set(result) == {'01', '02'}, f"Expected {{'01', '02'}}, got {set(result)}"
             
@@ -154,7 +154,7 @@ def test_get_entity_values_with_none_empty_dataset():
     """Test that _get_entity_values returns [None] when no values found."""
     try:
         from meegflow import MEEGFlowPipeline
-        from readers import BIDSReader
+        from meegflow.readers import BIDSReader
         
         with tempfile.TemporaryDirectory() as tmpdir:
             bids_root = Path(tmpdir)
@@ -164,7 +164,7 @@ def test_get_entity_values_with_none_empty_dataset():
             reader = BIDSReader(bids_root)
             pipeline = MEEGFlowPipeline(reader=reader, config={})
             
-            result = pipeline._get_entity_values('subject', None)
+            result = reader._get_entity_values('subject', None)
             assert result == [None], f"Expected [None] for empty dataset, got {result}"
             
         print("✓ _get_entity_values correctly returns [None] for empty dataset")
@@ -177,7 +177,7 @@ def test_get_entity_values_invalid_type():
     """Test that _get_entity_values raises ValueError for invalid input types."""
     try:
         from meegflow import MEEGFlowPipeline
-        from readers import BIDSReader
+        from meegflow.readers import BIDSReader
         
         with tempfile.TemporaryDirectory() as tmpdir:
             bids_root = Path(tmpdir)
@@ -185,7 +185,7 @@ def test_get_entity_values_invalid_type():
             pipeline = MEEGFlowPipeline(reader=reader, config={})
             
             try:
-                result = pipeline._get_entity_values('subject', 123)
+                result = reader._get_entity_values('subject', 123)
                 raise AssertionError("Expected ValueError for invalid type")
             except ValueError as e:
                 assert "Invalid type" in str(e), f"Expected 'Invalid type' in error message, got {e}"

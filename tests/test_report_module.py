@@ -13,7 +13,7 @@ repo_root = Path(__file__).parent.parent
 src_dir = repo_root / "src"
 sys.path.insert(0, str(src_dir))
 
-from report import (
+from meegflow.report import (
     collect_bad_channels_from_steps,
     create_bad_channels_topoplot,
     create_preprocessing_steps_table

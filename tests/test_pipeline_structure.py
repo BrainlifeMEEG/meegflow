@@ -19,14 +19,14 @@ configs_dir = repo_root / "configs"
 
 def test_pipeline_file_exists():
     """Test that the main pipeline file exists."""
-    pipeline_file = src_dir / "meegflow.py"
+    pipeline_file = src_dir / "meegflow" / "pipeline.py"
     assert pipeline_file.exists(), "Pipeline file does not exist"
     print("✓ Pipeline file exists")
 
 
 def test_pipeline_syntax():
     """Test that the pipeline file has valid Python syntax."""
-    pipeline_file = src_dir / "meegflow.py"
+    pipeline_file = src_dir / "meegflow" / "pipeline.py"
     with open(pipeline_file, 'r') as f:
         code = f.read()
     
@@ -39,7 +39,7 @@ def test_pipeline_syntax():
 
 def test_pipeline_has_required_classes():
     """Test that the pipeline file contains required classes."""
-    pipeline_file = src_dir / "meegflow.py"
+    pipeline_file = src_dir / "meegflow" / "pipeline.py"
     with open(pipeline_file, 'r') as f:
         code = f.read()
     
@@ -48,41 +48,51 @@ def test_pipeline_has_required_classes():
 
 
 def test_pipeline_has_required_methods():
-    """Test that the pipeline class has required methods."""
-    pipeline_file = src_dir / "meegflow.py"
+    """Test that the pipeline exposes its orchestration methods.
+
+    ``_process_single_recording`` and ``_get_pipeline_steps`` were replaced
+    by the module-level ``process_recording``/``build_step_functions``
+    functions as part of the Dask parallel-execution refactor: the
+    per-recording unit of work must be a plain, picklable function (not a
+    bound method closing over ``self``) so it can be dispatched to Dask
+    workers, including remote processes started via ``dask-jobqueue``. See
+    ``docs/dask_parallel_execution.md``.
+    """
+    pipeline_file = src_dir / "meegflow" / "pipeline.py"
     with open(pipeline_file, 'r') as f:
         code = f.read()
-    
-    # Check for auxiliary step functions (new modular design)
-    required_methods = [
-        "_step_strip_recording",
-        "_step_concatenate_recordings",
-        "_step_set_montage",
-        "_step_drop_unused_channels",
-        "_step_bandpass_filter",
-        "_step_notch_filter",
-        "_step_resample",
-        "_step_reference",
-        "_step_interpolate_bad_channels",
-        "_step_drop_bad_channels",
-        "_step_ica",
-        "_step_find_events",
-        "_step_epoch",
-        "_step_chunk_in_epoch",
-        "_step_find_flat_channels",
-        "_step_find_bads_channels_threshold",
-        "_step_find_bads_channels_variance",
-        "_step_find_bads_channels_high_frequency",
-        "_step_find_bads_epochs_threshold",
-        "_step_save_clean_instance",
-        "_step_generate_json_report",
-        "_step_generate_html_report",
-        "run_pipeline",
-    ]
-    
-    for method in required_methods:
+
+    # Orchestration methods remain on the pipeline class. ``run_step`` was
+    # removed: it was a test-only convenience wrapper never used by
+    # ``process_recording`` (see tests/conftest.py's run_step helper).
+    for method in ["run_pipeline", "_load_custom_steps"]:
         assert f"def {method}" in code, f"Method {method} not found"
         print(f"✓ Method {method} found")
+
+    # The per-recording unit of work is now module-level (see docstring).
+    for function in ["build_step_functions", "process_recording"]:
+        assert f"def {function}" in code, f"Function {function} not found"
+        print(f"✓ Function {function} found")
+
+
+def test_all_builtin_steps_registered():
+    """Every built-in step is registered in the steps package registry."""
+    from meegflow.steps import STEP_REGISTRY
+
+    required_steps = [
+        "strip_recording", "concatenate_recordings", "copy_instance",
+        "call_module", "set_montage", "drop_unused_channels",
+        "bandpass_filter", "notch_filter", "resample", "reference",
+        "interpolate_bad_channels", "drop_bad_channels", "ica",
+        "find_events", "epoch", "chunk_in_epoch", "find_flat_channels",
+        "find_bads_channels_threshold", "find_bads_channels_variance",
+        "find_bads_channels_high_frequency", "find_bads_epochs_threshold",
+        "save_clean_instance", "generate_json_report", "generate_html_report",
+    ]
+    for step in required_steps:
+        assert step in STEP_REGISTRY, f"Step {step} not registered"
+        assert callable(STEP_REGISTRY[step]), f"Step {step} is not callable"
+        print(f"✓ Step {step} registered")
 
 
 def test_config_example_valid_yaml():
@@ -106,25 +116,25 @@ def test_config_example_valid_yaml():
     print("✓ Config example is valid YAML with pipeline structure")
 
 
-def test_requirements_file_exists():
-    """Test that requirements.txt exists and contains necessary packages."""
-    req_file = repo_root / "requirements.txt"
-    assert req_file.exists(), "requirements.txt does not exist"
-    
-    with open(req_file, 'r') as f:
-        requirements = f.read()
-    
+def test_requirements_in_setup():
+    """Test that setup.py declares the necessary packages."""
+    setup_file = repo_root / "setup.py"
+    assert setup_file.exists(), "setup.py does not exist"
+
+    with open(setup_file, 'r') as f:
+        setup_content = f.read()
+
     required_packages = ["mne", "mne-bids", "numpy", "scipy", "PyYAML"]
-    
+
     for package in required_packages:
-        assert package in requirements, f"Required package {package} not in requirements.txt"
-    
-    print("✓ requirements.txt exists with required packages")
+        assert package in setup_content, f"Required package {package} not in setup.py"
+
+    print("✓ setup.py exists with required packages")
 
 
 def test_output_directories_structure():
     """Test that the pipeline creates correct output directory structure."""
-    pipeline_file = src_dir / "meegflow.py"
+    pipeline_file = src_dir / "meegflow" / "pipeline.py"
     with open(pipeline_file, 'r') as f:
         code = f.read()
     
@@ -160,7 +170,7 @@ def test_readme_exists():
 
 def test_batch_processing_support():
     """Test that the pipeline supports batch processing."""
-    pipeline_file = src_dir / "meegflow.py"
+    pipeline_file = src_dir / "meegflow" / "pipeline.py"
     with open(pipeline_file, 'r') as f:
         code = f.read()
     
