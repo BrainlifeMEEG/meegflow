@@ -173,7 +173,7 @@ def main():
         logger.info(f"Using BIDS reader")
         logger.info(f"BIDS root: {args.bids_root}")
         
-        from readers import BIDSReader
+        from .readers import BIDSReader
         reader = BIDSReader(args.bids_root)
         
     elif args.reader == 'glob':
@@ -188,7 +188,7 @@ def main():
         logger.info(f"Data root: {args.data_root}")
         logger.info(f"Glob pattern: {args.glob_pattern}")
         
-        from readers import GlobReader
+        from .readers import GlobReader
         reader = GlobReader(args.data_root, args.glob_pattern)
     
     if args.output_root:
