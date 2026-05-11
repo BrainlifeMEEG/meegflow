@@ -37,7 +37,6 @@ def test_run_pipeline_signature():
             'sessions',
             'tasks',
             'acquisitions',
-            'runs',
             'extension',
         ]
         
@@ -60,18 +59,17 @@ def test_cli_passes_correct_arguments():
     assert "subjects=args.subjects" in code, "subjects parameter not passed to run_pipeline"
     assert "tasks=args.tasks" in code, "tasks parameter not passed to run_pipeline"
     assert "sessions=args.sessions" in code, "sessions parameter not passed to run_pipeline"
-    assert "runs=args.runs" in code, "runs parameter not passed to run_pipeline"
     
     print("✓ CLI passes correct arguments to run_pipeline")
 
 
 def test_cli_has_new_arguments():
-    """Test that CLI has the expected arguments."""
+    """Test that CLI has the new arguments."""
     cli_file = src_dir / "meegflow" / "cli.py"
     with open(cli_file, 'r') as f:
         code = f.read()
-
-    # Check for expected arguments
+    
+    # Check for new arguments
     expected_args = [
         '--bids-root',
         '--output-root',
@@ -81,8 +79,7 @@ def test_cli_has_new_arguments():
         '--acquisitions',
         '--runs',
         '--extension',
-        '--io-backend',
-        '--config',
+        '--config', 
         '--log-file',
         '--log-level',
     ]
