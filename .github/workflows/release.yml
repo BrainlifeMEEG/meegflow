@@ -11,6 +11,8 @@ permissions:
 
 jobs:
   release:
+    # Only run on the upstream repository, not forks
+    if: github.repository == 'Picnic-DoC/meegflow'
     runs-on: ubuntu-latest
 
     steps:
