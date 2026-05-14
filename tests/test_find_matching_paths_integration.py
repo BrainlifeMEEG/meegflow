@@ -51,7 +51,7 @@ def test_run_pipeline_signature():
 
 def test_cli_passes_correct_arguments():
     """Test that CLI passes the correct arguments to run_pipeline."""
-    cli_file = src_dir / "cli.py"
+    cli_file = src_dir / "meegflow" / "cli.py"
     with open(cli_file, 'r') as f:
         code = f.read()
     
@@ -64,12 +64,12 @@ def test_cli_passes_correct_arguments():
 
 
 def test_cli_has_new_arguments():
-    """Test that CLI has the new arguments."""
-    cli_file = src_dir / "cli.py"
+    """Test that CLI has the expected arguments."""
+    cli_file = src_dir / "meegflow" / "cli.py"
     with open(cli_file, 'r') as f:
         code = f.read()
-    
-    # Check for new arguments
+
+    # Check for expected arguments
     expected_args = [
         '--bids-root',
         '--output-root',
@@ -77,9 +77,9 @@ def test_cli_has_new_arguments():
         '--sessions',
         '--tasks',
         '--acquisitions',
-        '--runs',
         '--extension',
-        '--config', 
+        '--io-backend',
+        '--config',
         '--log-file',
         '--log-level',
     ]
@@ -128,7 +128,7 @@ def test_tasks_parameter_accepts_none():
 
 def test_cli_subjects_not_required():
     """Test that --subjects is not required in CLI."""
-    cli_file = src_dir / "cli.py"
+    cli_file = src_dir / "meegflow" / "cli.py"
     with open(cli_file, 'r') as f:
         code = f.read()
     

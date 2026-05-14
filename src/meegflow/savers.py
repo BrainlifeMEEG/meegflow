@@ -5,7 +5,8 @@ from __future__ import annotations
 import pickle
 from pathlib import Path
 
-import mne
+from mne.io import BaseRaw
+from mne import BaseEpochs
 import numpy as np
 
 
@@ -24,15 +25,15 @@ def _save_pickle(obj, path, overwrite):
 
 
 def _save_hdf5(obj, path, overwrite):
-    """Save to HDF5: uses MNE's native .save() for Raw/Epochs, h5py otherwise."""
-    # MNE Raw and Epochs support .h5 natively via save()
-    if isinstance(obj, (mne.BaseRaw, mne.BaseEpochs)):
+    """Save to HDF5: uses MNE's native .save() for Epochs, h5py for Raw and everything else.
+
+    Note: BaseRaw.save() only accepts .fif — it does not support .h5.
+    BaseEpochs.save() accepts both .fif and .h5.
+    """
+    if isinstance(obj, BaseEpochs):
         obj.save(path, overwrite=overwrite)
     else:
-        try:
-            import h5py
-        except ImportError:
-            raise ImportError("h5py is required for hdf5 format: pip install h5py")
+        import h5py
         path = Path(path)
         if path.exists() and not overwrite:
             raise FileExistsError(f"File already exists: {path}")
