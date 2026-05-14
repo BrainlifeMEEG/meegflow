@@ -14,11 +14,8 @@ https://picnic-doc.github.io/meegflow/
 - **Custom Steps Support**: Extend the pipeline with your own preprocessing functions
 - **Progress Tracking**: Rich progress bars show real-time progress for recordings and preprocessing steps
 - **Comprehensive Logging**: MNE logger integration with optional log file output
-- **Multiple Output Formats**:
-  - Clean preprocessed epochs in `.fif` format
-  - Clean preprocessed raw data in `.fif` format
-  - Interactive HTML reports using MNE Report
-  - JSON reports for easy downstream processing
+- **Multiple Output Formats**: Save preprocessed data in `.fif`, `.pkl` (pickle), `.h5` (HDF5), or `.npy` (NumPy) format via the `save_clean_instance` step, plus interactive HTML and JSON reports
+- **Modular Architecture**: Savers, readers, and pipeline steps are each in their own module for easy extension
 - **Batch Processing**: Process multiple subjects sequentially
 - **Command-line Interface**: Easy to use from the terminal
 
@@ -146,10 +143,8 @@ python src/cli.py \
 You can also use the pipeline directly in Python:
 
 ```python
-import sys
-sys.path.insert(0, 'src')
 from meegflow import MEEGFlowPipeline
-from readers import BIDSReader
+from meegflow.readers import BIDSReader
 
 # Load configuration
 import yaml
@@ -215,7 +210,7 @@ python src/cli.py \
 **Python API:**
 
 ```python
-from readers import GlobReader
+from meegflow.readers import GlobReader
 
 # Create a glob reader with your custom pattern
 reader = GlobReader(
@@ -248,7 +243,7 @@ derivatives/meegflow/
 ├── raw/                 # When saving raw data with save_clean_instance
 │   └── sub-01/
 │       └── eeg/
-│           └── sub-01_task-rest_proc-clean_desc-cleaned_epo.fif
+│           └── sub-01_task-rest_proc-clean_desc-cleaned_eeg.fif
 └── reports/
     └── sub-01/
         └── eeg/
@@ -471,12 +466,12 @@ These arguments use the same matching logic as `mne-bids` `find_matching_paths`.
 - `--sessions`: Session ID(s) to process, space-separated
 - `--tasks`: Task name(s) to process, space-separated (e.g., `--tasks rest task1`)
 - `--acquisitions`: Acquisition parameter(s) to process
-- `--runs`: Run number(s) to process
 - `--extension`: File extension to process (default: `.vhdr`)
 
 ### Other Arguments
 - `--output-root`: Custom output path (optional, defaults to `bids-root/derivatives/meegflow`)
 - `--config`: Path to YAML configuration file (optional)
+- `--io-backend`: MNE IO backend function used to read files (default: `read_raw_bids`)
 - `--log-file`: Path to log file (optional, defaults to console output)
 - `--log-level`: Logging level - DEBUG, INFO, WARNING, or ERROR (optional, default: INFO)
 
@@ -788,7 +783,7 @@ Find bad channels using variance-based detection. Identifies channels with abnor
 - `max_iter`: Maximum iterations for iterative outlier removal (default: 2)
 - `apply_on`: List of instances to mark bad channels on (default: [instance])
 
-### 15. find_bads_channels_high_frequency
+### 16. find_bads_channels_high_frequency
 Find bad channels using high-frequency variance. Detects channels with excessive high-frequency noise.
 - `instance`: Which data instance to use - 'raw' or 'epochs' (default: 'epochs')
 - `picks`: Channel indices to check (optional, default: EEG channels)
@@ -797,26 +792,43 @@ Find bad channels using high-frequency variance. Detects channels with excessive
 - `max_iter`: Maximum iterations for iterative outlier removal (default: 2)
 - `apply_on`: List of instances to mark bad channels on (default: [instance])
 
-### 16. find_bads_epochs_threshold
+### 17. find_bads_epochs_threshold
 Find and remove bad epochs using threshold-based rejection. Drops epochs that have too many bad channels.
 - `picks`: Channel indices to check (optional, default: EEG channels)
 - `excluded_channels`: List of channel names to exclude from epoch rejection criteria (optional)
 - `reject`: Rejection thresholds by channel type (e.g., `{"eeg": 150e-6}`)
 - `n_channels_bad_epoch`: Fraction or number of channels that must be bad for an epoch to be rejected (default: 0.1)
 
-### 17. save_clean_instance
-Save clean raw or epochs data to .fif file in BIDS-derivatives format.
-- `instance`: Which data instance to save - 'raw' or 'epochs' (default: 'epochs')
-- `overwrite`: Whether to overwrite existing files (default: true)
+### 18. save_clean_instance
+Save a preprocessed MNE object to the BIDS derivatives tree. The output path follows BIDS conventions and the format is configurable. Supported formats are handled by `meegflow/savers.py`.
+- `instance`: Key in the pipeline data dict to save — typically `'raw'` or `'epochs'` (default: `'epochs'`)
+- `format`: Output format — `'fif'` (default for MNE objects), `'pickle'`, `'hdf5'`, or `'numpy'` (default for other objects: `'pickle'`). Auto-detected from the object type if omitted.
+- `overwrite`: Whether to overwrite existing files (default: `true`)
+- `processing`: BIDS `proc` entity for the output path (optional)
+- `description`: BIDS `desc` entity for the output path (optional)
+- `datatype`: BIDS datatype subfolder (optional)
+- `suffix`: BIDS suffix — defaults to `'epo'` for epochs and `'eeg'` for raw (optional)
+- `extension`: File extension — inferred from `format` if omitted (optional)
 
-### 18. generate_json_report
+**Example with explicit format:**
+```yaml
+- name: save_clean_instance
+  instance: epochs
+  format: hdf5
+  overwrite: true
+  processing: clean
+  description: preprocessed
+```
+
+### 19. generate_json_report
 Generate JSON report with preprocessing information. No parameters needed.
 
-### 19. generate_html_report
+### 20. generate_html_report
 Generate HTML report with interactive visualizations.
 - `picks`: Channel types to include in plots (optional, default: EEG channels)
 - `excluded_channels`: List of channel names to exclude from plots (optional)
 - `compare_instances`: List of instance comparisons to plot (optional, see config_minimal.yaml for example)
+- `n_time_points`: Number of time points shown in evoked plots (optional, default: MNE default)
 - `plot_raw_kwargs`: Additional keyword arguments for raw data plots (optional, dict)
 - `plot_ica_kwargs`: Additional keyword arguments for ICA plots (optional, dict)
 - `plot_events_kwargs`: Additional keyword arguments for event plots (optional, dict)

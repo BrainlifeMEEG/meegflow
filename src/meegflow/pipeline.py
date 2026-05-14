@@ -104,9 +104,11 @@ import importlib.util
 import sys
 import inspect
 from .readers import BIDSReader
+from .savers import SAVERS as _SAVERS, FORMAT_EXTENSIONS as _FORMAT_EXTENSIONS
 
 if TYPE_CHECKING:
     from .readers import DatasetReader
+
 
 class MEEGFlowPipeline:
     def __init__(
@@ -549,7 +551,37 @@ class MEEGFlowPipeline:
         return picks
 
     def _step_strip_recording(self, data: Dict[str, Any], step_config: Dict[str, Any]) -> Dict[str, Any]:
-        
+        """Crop recordings to the window spanned by their first and last events.
+
+        Works on a single instance or a list of instances (e.g. ``'all_raw'``).
+        Each recording is cropped in-place; optional padding is kept around the
+        event boundaries.
+
+        Args:
+            data: Pipeline data dict. Must contain the key named by
+                ``step_config['instance']``.
+            step_config: Step parameters:
+                - ``instance`` (str): Key in ``data`` to crop — ``'raw'`` or
+                  ``'all_raw'``. Default ``'raw'``.
+                - ``get_events_from`` (str): ``'annotations'`` or ``'stim'``.
+                  Default ``'annotations'``.
+                - ``shortest_event`` (int): Minimum event duration in samples.
+                  Default ``1``.
+                - ``event_id`` (dict | ``'auto'``): Event IDs to consider when
+                  locating the first/last event. Default ``'auto'`` (all events).
+                - ``start_padding`` (float): Seconds to keep before the first
+                  event. Default ``1``.
+                - ``end_padding`` (float): Seconds to keep after the last event.
+                  Default ``1``.
+
+        Returns:
+            Updated data dict. Each recording is cropped in-place; a
+            ``preprocessing_steps`` entry is appended for every cropped
+            recording.
+
+        Raises:
+            ValueError: If ``instance`` is not present in ``data``.
+        """
         instance = step_config.get('instance', 'raw')
         start_padding = step_config.get('start_padding', 1)
         end_padding = step_config.get('end_padding', 1)
@@ -593,7 +625,7 @@ class MEEGFlowPipeline:
     
     def _step_concatenate_recordings(self, data: Dict[str, Any], step_config: Dict[str, Any]) -> Dict[str, Any]:
         if 'all_raw' not in data:
-            raise ValueError("notch_filter requires 'all_raw' in data")
+            raise ValueError("concatenate_recordings requires 'all_raw' in data")
 
         if len(data['all_raw']) > 1:
             data['raw'] = mne.concatenate_raws(data['all_raw'])
@@ -1298,7 +1330,30 @@ class MEEGFlowPipeline:
         return data
 
     def _step_find_events(self, data: Dict[str, Any], step_config: Dict[str, Any]) -> Dict[str, Any]:
-        """Find events in the data."""
+        """Extract events from raw data and store them in the pipeline dict.
+
+        Args:
+            data: Pipeline data dict. Must contain ``'raw'``.
+            step_config: Step parameters:
+                - ``get_events_from`` (str): ``'annotations'`` or ``'stim'``.
+                  Default ``'annotations'``.
+                - ``shortest_event`` (int): Minimum event duration in samples.
+                  Default ``1``.
+                - ``event_id`` (dict | ``'auto'``): Mapping of event names to
+                  integer IDs, or ``'auto'`` to infer from the data.
+                  Default ``'auto'``.
+                - ``stim_channel`` (str | None): Stimulus channel name used
+                  when ``get_events_from='stim'``. Default ``None`` (MNE
+                  auto-detects).
+
+        Returns:
+            Updated data dict with ``data['events']`` (ndarray, shape
+            ``(n_events, 3)``), ``data['event_id']`` (dict), and
+            ``data['events_sfreq']`` (float) set.
+
+        Raises:
+            ValueError: If ``'raw'`` is not in ``data``.
+        """
         if 'raw' not in data:
             raise ValueError("find_events requires 'raw' in data")
 
@@ -1406,7 +1461,7 @@ class MEEGFlowPipeline:
         data['epochs'] = mne.make_fixed_length_epochs(data['raw'], duration=duration, preload=True)
 
         data['preprocessing_steps'].append({
-            'step': 'epoch',
+            'step': 'chunk_in_epoch',
             'type': 'fixed_length_epochs',
             'duration': duration,
         })
@@ -1733,22 +1788,27 @@ class MEEGFlowPipeline:
         """Save a preprocessed Raw or Epochs instance to the BIDS derivatives tree.
 
         The output path follows BIDS conventions under the pipeline's
-        derivatives root, with ``processing=clean`` and ``description=cleaned``.
+        derivatives root. The save format is controlled by ``step_config['format']``;
+        if omitted it defaults to ``'fif'`` for MNE objects and ``'pickle'`` otherwise.
 
         Args:
             data: Pipeline data dict. Must contain the key named by
                 ``step_config['instance']`` (default ``'epochs'``).
             step_config: Step parameters:
-                - ``instance`` (str): Key in ``data`` to save (``'raw'`` or
-                  ``'epochs'``). Default ``'epochs'``.
+                - ``instance`` (str): Key in ``data`` to save. Default ``'epochs'``.
+                - ``format`` (str): One of ``'fif'``, ``'pickle'``, ``'hdf5'``,
+                  ``'numpy'``. Auto-detected if omitted.
                 - ``overwrite`` (bool): Overwrite existing file. Default ``True``.
+                - ``processing``, ``description``, ``datatype``, ``suffix``,
+                  ``extension``: BIDS path components (all optional).
 
         Returns:
             Updated data dict with ``data['{instance}_file']`` set to the saved
             path string.
 
         Raises:
-            ValueError: If the requested instance is not in ``data``.
+            ValueError: If the requested instance is not in ``data``, or if an
+                unknown format is requested.
         """
         instance = step_config.get('instance', 'epochs')
         overwrite = step_config.get('overwrite', True)
@@ -1756,23 +1816,36 @@ class MEEGFlowPipeline:
         description = step_config.get('description', None)
         datatype = step_config.get('datatype', None)
         suffix = step_config.get('suffix', None)
-        extension = step_config.get('suffix', None)
+        extension = step_config.get('extension', None)
+        fmt = step_config.get('format', None)
 
         if instance not in data:
-            raise ValueError(f"save_clean_instances step requires '{instance}' to be present in data (either 'raw' or 'epochs')")
+            raise ValueError(
+                f"save_clean_instance step requires '{instance}' to be present in data"
+            )
 
-        # Compute default suffixes if not specified otherwise
+        obj = data[instance]
+
+        # Auto-detect format
+        if fmt is None:
+            fmt = 'fif' if isinstance(obj, (mne.BaseRaw, mne.BaseEpochs)) else 'pickle'
+
+        if fmt not in _SAVERS:
+            raise ValueError(f"Unknown format '{fmt}'. Choose from: {list(_SAVERS)}, or pass a callable.")
+
+        saver = _SAVERS[fmt]
+
+        # Default BIDS suffix based on instance type
         if suffix is None:
             if instance == 'epochs':
                 suffix = 'epo'
             elif instance == 'raw':
                 suffix = 'eeg'
 
-        # Compute extension if not expecified
-        if extension is None and instance in ['epochs', 'raw']:
-            suffix = '.fif'
+        # Default extension from format — required when using a custom callable
+        if extension is None:
+            extension = _FORMAT_EXTENSIONS.get(fmt, '.pkl')
 
-        # Derivatives root for this pipeline
         deriv_root = self._get_derivatives_root(instance)
 
         bids_path = BIDSPath(
@@ -1789,13 +1862,10 @@ class MEEGFlowPipeline:
             check=False,
         )
 
-        # Ensure directory exists
         bids_path.mkdir(exist_ok=True)
 
-        # Save instance
-        data[instance].save(bids_path.fpath, overwrite=overwrite)
+        saver(obj, bids_path.fpath, overwrite)
 
-        # Store paths
         data[f'{instance}_file'] = str(bids_path)
 
         return data
@@ -2323,12 +2393,20 @@ class MEEGFlowPipeline:
         acquisitions : str | list of str | None
             Acquisition parameter(s). None matches all acquisitions.
         extension : str
-            File extension to match (default: .vhdr)
+            File extension to match (default: ``'.vhdr'``).
+        io_backend : str
+            MNE IO function used to read each file (default:
+            ``'read_raw_bids'``). Any function name resolvable via
+            ``mne.io`` can be supplied (e.g. ``'read_raw_eeglab'``).
 
         Returns
         -------
         all_results : dict
-            Dictionary mapping subject -> list of results for each matching file.
+            Dictionary mapping recording name -> result dict. Each result
+            contains the keys set by whichever output steps ran (e.g.
+            ``'raw_file'``, ``'epochs_file'``, ``'json_report'``,
+            ``'html_report'``), or an ``'error'`` key with the exception if
+            processing failed.
         """
         
         # Use the reader to find recordings
