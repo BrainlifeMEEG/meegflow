@@ -106,20 +106,20 @@ def test_config_example_valid_yaml():
     print("✓ Config example is valid YAML with pipeline structure")
 
 
-def test_requirements_file_exists():
-    """Test that requirements.txt exists and contains necessary packages."""
-    req_file = repo_root / "requirements.txt"
-    assert req_file.exists(), "requirements.txt does not exist"
-    
-    with open(req_file, 'r') as f:
-        requirements = f.read()
-    
+def test_requirements_in_setup():
+    """Test that setup.py declares the necessary packages."""
+    setup_file = repo_root / "setup.py"
+    assert setup_file.exists(), "setup.py does not exist"
+
+    with open(setup_file, 'r') as f:
+        setup_content = f.read()
+
     required_packages = ["mne", "mne-bids", "numpy", "scipy", "PyYAML"]
-    
+
     for package in required_packages:
-        assert package in requirements, f"Required package {package} not in requirements.txt"
-    
-    print("✓ requirements.txt exists with required packages")
+        assert package in setup_content, f"Required package {package} not in setup.py"
+
+    print("✓ setup.py exists with required packages")
 
 
 def test_output_directories_structure():
