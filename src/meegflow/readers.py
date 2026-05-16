@@ -32,10 +32,11 @@ class DatasetReader(ABC):
         sessions: Optional[Union[str, List[str]]] = None,
         tasks: Optional[Union[str, List[str]]] = None,
         acquisitions: Optional[Union[str, List[str]]] = None,
+        runs: Optional[Union[str, List[str]]] = None,
         extension: str = '.vhdr'
     ) -> List[Dict[str, Any]]:
         """Find recordings matching the specified criteria.
-        
+
         Parameters
         ----------
         subjects : str, list of str, or None
@@ -46,15 +47,17 @@ class DatasetReader(ABC):
             Task(s) to process
         acquisitions : str, list of str, or None
             Acquisition parameter(s) to process
+        runs : str, list of str, or None
+            Run ID(s) to process
         extension : str
             File extension to match
-            
+
         Returns
         -------
         list of dict
             List of recording dictionaries, each containing:
             - 'paths': list of file paths (list of BIDSPath or Path objects)
-            - 'metadata': dict with subject, session, task, acquisition info
+            - 'metadata': dict with subject, session, task, acquisition, run info
             - 'recording_name': string identifier for logging
         """
         pass
@@ -184,10 +187,11 @@ class BIDSReader(DatasetReader):
         sessions: Optional[Union[str, List[str]]] = None,
         tasks: Optional[Union[str, List[str]]] = None,
         acquisitions: Optional[Union[str, List[str]]] = None,
+        runs: Optional[Union[str, List[str]]] = None,
         extension: str = '.vhdr'
     ) -> List[Dict[str, Any]]:
         """Find recordings in BIDS dataset matching the specified criteria.
-        
+
         Parameters
         ----------
         subjects : str, list of str, or None
@@ -198,37 +202,36 @@ class BIDSReader(DatasetReader):
             Task(s) to process. If None, processes all tasks.
         acquisitions : str, list of str, or None
             Acquisition parameter(s) to process. If None, processes all acquisitions.
+        runs : str, list of str, or None
+            Run ID(s) to process. If None, processes all runs.
         extension : str
             File extension (default: .vhdr)
-            
+
         Returns
         -------
         list of dict
             List of recording dictionaries with paths and metadata
         """
-        # Get subjects (no dependencies)
+        if isinstance(runs, str):
+            runs = [runs]
+
         subjects = self._get_entity_values('subject', subjects)
-        
-        # Then get sessions, passing subjects to narrow search
         sessions = self._get_entity_values('session', sessions, subjects=subjects)
-        
-        # Get tasks, passing both subjects and sessions to narrow search
         tasks = self._get_entity_values('task', tasks, subjects=subjects, sessions=sessions)
-        
-        # Get acquisitions, passing both subjects and sessions to narrow search
         acquisitions = self._get_entity_values('acquisition', acquisitions, subjects=subjects, sessions=sessions)
 
-        # Log what we're processing
         logger.info(f"Subjects to process: {subjects}")
         logger.info(f"Sessions to process: {sessions}")
         logger.info(f"Tasks to process: {tasks}")
         logger.info(f"Acquisitions to process: {acquisitions}")
+        if runs is not None:
+            logger.info(f"Filtering to runs: {runs}")
 
         n_combinations = len(subjects) * len(sessions) * len(tasks) * len(acquisitions)
         logger.info(f"Computing {n_combinations} matching file(s) to process")
 
         recordings = []
-        
+
         for subject, session, task, acquisition in product(subjects, sessions, tasks, acquisitions):
             pb = BIDSPath(
                 root=self.bids_root,
@@ -242,12 +245,17 @@ class BIDSReader(DatasetReader):
             )
 
             all_raw_paths = list(pb.match(ignore_nosub=True))
+
+            # Filter to requested runs; when runs is None all runs are kept
+            if runs is not None:
+                all_raw_paths = [p for p in all_raw_paths if p.run in runs]
+
             if len(all_raw_paths) == 0:
                 logger.warning(f"No files found for {subject} - {session} - {task} - {acquisition}, skipping.")
                 continue
 
             logger.info(f"Found {len(all_raw_paths)} recording(s) for {subject} - {session} - {task} - {acquisition} to process together.")
-            
+
             recording_name = f"{subject} - {session} - {task} - {acquisition}"
             recordings.append({
                 'paths': all_raw_paths,
@@ -259,7 +267,7 @@ class BIDSReader(DatasetReader):
                 },
                 'recording_name': recording_name
             })
-            
+
         return recordings
 
 
@@ -301,30 +309,31 @@ class GlobReader(DatasetReader):
         return re.sub(r'\{(\w+)\}', '*', pattern)
         
     def _create_regex_pattern(self, pattern: str) -> re.Pattern:
-        """Convert pattern with {variables} to regex for extracting values.
-        
-        Handles duplicate variable names by only creating one named capture group
-        per unique variable name, and using backreferences for subsequent occurrences.
+        """Convert pattern with {variables} and * wildcards to a regex.
+
+        {variable} becomes a named capture group (grouping key).
+        * becomes [^/]* (matches anything within a path segment, not extracted).
+        Duplicate {variable} names use backreferences to enforce consistency.
         """
-        # Escape special regex characters except {}
-        escaped = re.escape(pattern)
-        
-        # Track which variables we've already seen
+        # Split into tokens: {variable}, *, or literal text
+        tokens = re.split(r'(\{[^}]+\}|\*)', pattern)
         seen_vars = set()
-        
-        def replace_var(match):
-            var_name = match.group(1)
-            if var_name not in seen_vars:
-                seen_vars.add(var_name)
-                # First occurrence: create a named capture group
-                return f'(?P<{var_name}>[^/]+)'
+        regex_parts = []
+
+        for token in tokens:
+            if token.startswith('{') and token.endswith('}'):
+                var_name = token[1:-1]
+                if var_name not in seen_vars:
+                    seen_vars.add(var_name)
+                    regex_parts.append(f'(?P<{var_name}>[^/]+)')
+                else:
+                    regex_parts.append(f'(?P={var_name})')
+            elif token == '*':
+                regex_parts.append('[^/]*')
             else:
-                # Subsequent occurrence: use a backreference
-                return f'(?P={var_name})'
-        
-        # Replace escaped braces with capture groups or backreferences
-        regex_str = re.sub(r'\\{(\w+)\\}', replace_var, escaped)
-        return re.compile(regex_str)
+                regex_parts.append(re.escape(token))
+
+        return re.compile(''.join(regex_parts))
         
     def _extract_variables(self, file_path: Path) -> Dict[str, str]:
         """Extract variable values from a matched file path."""
@@ -350,15 +359,16 @@ class GlobReader(DatasetReader):
         subjects: Optional[List[str]] = None,
         sessions: Optional[List[str]] = None,
         tasks: Optional[List[str]] = None,
-        acquisitions: Optional[List[str]] = None
+        acquisitions: Optional[List[str]] = None,
+        runs: Optional[List[str]] = None
     ) -> bool:
         """Check if extracted variables match the specified criteria."""
-        # Map standard BIDS entity names to possible variable names
         criteria_map = {
             'subject': subjects,
             'session': sessions,
             'task': tasks,
             'acquisition': acquisitions,
+            'run': runs,
         }
 
         for entity_name, allowed_values in criteria_map.items():
@@ -378,10 +388,11 @@ class GlobReader(DatasetReader):
         sessions: Optional[Union[str, List[str]]] = None,
         tasks: Optional[Union[str, List[str]]] = None,
         acquisitions: Optional[Union[str, List[str]]] = None,
+        runs: Optional[Union[str, List[str]]] = None,
         extension: str = '.vhdr'
     ) -> List[Dict[str, Any]]:
         """Find recordings using glob pattern matching.
-        
+
         Parameters
         ----------
         subjects : str, list of str, or None
@@ -392,15 +403,16 @@ class GlobReader(DatasetReader):
             Task(s) to filter by (uses 'task' variable from pattern)
         acquisitions : str, list of str, or None
             Acquisition parameter(s) to filter by (uses 'acquisition' variable from pattern)
+        runs : str, list of str, or None
+            Run ID(s) to filter by (uses 'run' variable from pattern)
         extension : str
             File extension filter (applied after glob matching)
-            
+
         Returns
         -------
         list of dict
             List of recording dictionaries with paths and metadata
         """
-        # Convert single values to lists
         if isinstance(subjects, str):
             subjects = [subjects]
         if isinstance(sessions, str):
@@ -409,33 +421,27 @@ class GlobReader(DatasetReader):
             tasks = [tasks]
         if isinstance(acquisitions, str):
             acquisitions = [acquisitions]
-            
-        # Find all files matching the glob pattern
+        if isinstance(runs, str):
+            runs = [runs]
+
         full_pattern = self.data_root / self.glob_pattern
-        
-        # Use the data_root as the base for glob
         matched_files = list(self.data_root.glob(self.glob_pattern))
-        
+
         logger.info(f"Glob pattern: {full_pattern}")
         logger.info(f"Found {len(matched_files)} file(s) matching pattern")
-        
-        # Extract variables and filter
+
         recordings_dict = {}
-        
+
         for file_path in matched_files:
-            # Check extension
             if not str(file_path).endswith(extension):
                 continue
-                
-            # Extract variables from the file path
+
             variables = self._extract_variables(file_path)
 
-            # Filter by criteria
-            if not self._filter_by_criteria(variables, subjects, sessions, tasks, acquisitions):
+            if not self._filter_by_criteria(variables, subjects, sessions, tasks, acquisitions, runs):
                 continue
                 
-            # Create a key for grouping recordings
-            # Use all extracted variables as the key
+            # Group by all named variables — {var} defines separate recordings, * concatenates
             key = tuple(sorted(variables.items()))
             
             if key not in recordings_dict:

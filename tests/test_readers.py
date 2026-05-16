@@ -46,24 +46,67 @@ def create_mock_bids_dataset(bids_root):
     return bids_root
 
 
+def create_mock_bids_dataset_with_runs(bids_root):
+    """Create a minimal mock BIDS dataset that includes run entities."""
+    bids_root = Path(bids_root)
+
+    subjects = ['01', '02']
+    sessions = ['01']
+    tasks = ['rest']
+    runs = ['01', '02']
+
+    for sub in subjects:
+        for ses in sessions:
+            eeg_dir = bids_root / f'sub-{sub}' / f'ses-{ses}' / 'eeg'
+            eeg_dir.mkdir(parents=True, exist_ok=True)
+
+            for task in tasks:
+                for run in runs:
+                    filename = f'sub-{sub}_ses-{ses}_task-{task}_run-{run}_eeg.vhdr'
+                    (eeg_dir / filename).touch()
+
+    return bids_root
+
+
 def create_mock_glob_dataset(data_root):
     """Create a minimal dataset for glob pattern testing."""
     data_root = Path(data_root)
-    
-    # Create a simple structure
+
     subjects = ['01', '02', '03']
     sessions = ['01', '02']
     tasks = ['rest', 'task1']
-    
+
     for sub in subjects:
         for ses in sessions:
             for task in tasks:
                 file_dir = data_root / 'data' / f'sub-{sub}' / f'ses-{ses}' / 'eeg'
                 file_dir.mkdir(parents=True, exist_ok=True)
-                
+
                 filename = f'sub-{sub}_ses-{ses}_task-{task}_eeg.vhdr'
                 (file_dir / filename).touch()
-    
+
+    return data_root
+
+
+def create_mock_glob_dataset_with_runs(data_root):
+    """Create a minimal dataset for glob pattern testing that includes run entities."""
+    data_root = Path(data_root)
+
+    subjects = ['01', '02']
+    sessions = ['01']
+    tasks = ['rest']
+    runs = ['01', '02']
+
+    for sub in subjects:
+        for ses in sessions:
+            for task in tasks:
+                for run in runs:
+                    file_dir = data_root / 'data' / f'sub-{sub}' / f'ses-{ses}' / 'eeg'
+                    file_dir.mkdir(parents=True, exist_ok=True)
+
+                    filename = f'sub-{sub}_ses-{ses}_task-{task}_run-{run}_eeg.vhdr'
+                    (file_dir / filename).touch()
+
     return data_root
 
 
@@ -217,21 +260,29 @@ def test_glob_reader_filtering():
 
 
 def test_glob_reader_regex_pattern():
-    """Test GlobReader creates correct regex pattern."""
+    """Test GlobReader creates correct regex pattern, including raw * wildcards."""
     try:
         from meegflow.readers import GlobReader
-        
+
+        # Named variables only
         pattern = "data/sub-{subject}/task-{task}.vhdr"
         reader = GlobReader("/tmp", pattern)
-        
-        # Test the regex matches expected patterns
-        test_path = "data/sub-01/task-rest.vhdr"
-        match = reader.regex_pattern.match(test_path)
-        
-        assert match is not None, f"Regex should match {test_path}"
-        assert match.group('subject') == '01', "Should extract subject='01'"
-        assert match.group('task') == 'rest', "Should extract task='rest'"
-        
+        match = reader.regex_pattern.match("data/sub-01/task-rest.vhdr")
+        assert match is not None, "Regex should match named-variable pattern"
+        assert match.group('subject') == '01'
+        assert match.group('task') == 'rest'
+
+        # Mixed: named variable + raw * wildcard (e.g. session position not a grouping key)
+        pattern_wild = "data/sub-{subject}/ses-*/eeg/sub-{subject}_task-{task}_eeg.vhdr"
+        reader_wild = GlobReader("/tmp", pattern_wild)
+        assert 'subject' in reader_wild.variable_names
+        assert 'task' in reader_wild.variable_names
+
+        match2 = reader_wild.regex_pattern.match("data/sub-01/ses-02/eeg/sub-01_task-rest_eeg.vhdr")
+        assert match2 is not None, "Regex should match path with * wildcard"
+        assert match2.group('subject') == '01'
+        assert match2.group('task') == 'rest'
+
         print("✓ GlobReader regex pattern works correctly")
     except ImportError as e:
         print(f"⚠ Skipping test (missing dependencies): {e}")
@@ -278,6 +329,110 @@ def test_readers_consistent_interface():
         raise
 
 
+def test_bids_reader_run_filtering():
+    """Test BIDSReader run filtering: selected runs are concatenated into one recording."""
+    try:
+        from meegflow.readers import BIDSReader
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bids_root = create_mock_bids_dataset_with_runs(tmpdir)
+            reader = BIDSReader(bids_root)
+
+            # No filter: all runs included, each (subject, session, task) is one recording
+            all_recordings = reader.find_recordings()
+            assert len(all_recordings) > 0, "Expected recordings"
+            # Each recording should contain paths for both runs
+            for recording in all_recordings:
+                assert len(recording['paths']) == 2, \
+                    f"Expected 2 run paths per recording, got {len(recording['paths'])}"
+                assert 'run' not in recording['metadata'], \
+                    "run should not appear in metadata — runs are concatenated"
+
+            # Filter to one run: each (subject, session, task) still one recording, but with 1 path
+            recordings_run01 = reader.find_recordings(runs='01')
+            assert len(recordings_run01) == len(all_recordings), \
+                "Number of recordings should be the same regardless of run filter"
+            for recording in recordings_run01:
+                assert len(recording['paths']) == 1, \
+                    f"Expected 1 path when filtering to run 01, got {len(recording['paths'])}"
+                assert all(p.run == '01' for p in recording['paths']), \
+                    "All paths should be from run 01"
+
+            # Filter to both runs: equivalent to no filter
+            recordings_both = reader.find_recordings(runs=['01', '02'])
+            for recording in recordings_both:
+                assert len(recording['paths']) == 2, \
+                    f"Expected 2 paths when selecting both runs, got {len(recording['paths'])}"
+
+        print("✓ BIDSReader run filtering works correctly")
+    except ImportError as e:
+        print(f"⚠ Skipping test (missing dependencies): {e}")
+        raise
+
+
+def test_glob_reader_wildcard_concatenation():
+    """Test that * wildcards concatenate files into one recording per named-variable combination."""
+    try:
+        from meegflow.readers import GlobReader
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data_root = create_mock_glob_dataset_with_runs(tmpdir)
+
+            # {subject} and {task} are grouping keys; run position uses * so all runs concatenate
+            pattern = "data/sub-{subject}/ses-{session}/eeg/sub-{subject}_ses-{session}_task-{task}_run-*_eeg.vhdr"
+            reader = GlobReader(data_root, pattern)
+
+            assert 'run' not in reader.variable_names, "'run' should not be extracted (it's a * wildcard)"
+
+            recordings = reader.find_recordings()
+            assert len(recordings) > 0, "Expected recordings"
+
+            # Each (subject, session, task) is one recording containing both run files
+            for recording in recordings:
+                assert len(recording['paths']) == 2, \
+                    f"Expected both run files concatenated into one recording, got {len(recording['paths'])}"
+
+        print("✓ GlobReader * wildcard concatenation works correctly")
+    except ImportError as e:
+        print(f"⚠ Skipping test (missing dependencies): {e}")
+        raise
+
+
+def test_glob_reader_named_run_filtering():
+    """Test that {run} as a named variable creates separate recordings, filterable with --runs."""
+    try:
+        from meegflow.readers import GlobReader
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data_root = create_mock_glob_dataset_with_runs(tmpdir)
+
+            # {run} is a named variable → each run is a separate recording
+            pattern = "data/sub-{subject}/ses-{session}/eeg/sub-{subject}_ses-{session}_task-{task}_run-{run}_eeg.vhdr"
+            reader = GlobReader(data_root, pattern)
+
+            assert 'run' in reader.variable_names, "Should extract 'run' as a named variable"
+
+            # No filter: one recording per (subject, session, task, run) combination
+            all_recordings = reader.find_recordings()
+            assert len(all_recordings) > 0, "Expected recordings"
+            for recording in all_recordings:
+                assert len(recording['paths']) == 1, \
+                    f"Each named-run recording should have exactly 1 path, got {len(recording['paths'])}"
+
+            # Filter to run '01': only run-01 recordings remain
+            recordings_run01 = reader.find_recordings(runs='01')
+            assert len(recordings_run01) == len(all_recordings) // 2, \
+                "Filtering to one run should halve the number of recordings"
+            for recording in recordings_run01:
+                assert recording['metadata']['run'] == '01', \
+                    f"Expected run '01', got {recording['metadata']['run']}"
+
+        print("✓ GlobReader named {run} variable filtering works correctly")
+    except ImportError as e:
+        print(f"⚠ Skipping test (missing dependencies): {e}")
+        raise
+
+
 def run_all_tests():
     """Run all tests."""
     print("=" * 60)
@@ -288,9 +443,12 @@ def run_all_tests():
     tests = [
         test_bids_reader_basic,
         test_bids_reader_filtering,
+        test_bids_reader_run_filtering,
         test_glob_reader_variable_extraction,
         test_glob_reader_find_recordings,
         test_glob_reader_filtering,
+        test_glob_reader_wildcard_concatenation,
+        test_glob_reader_named_run_filtering,
         test_glob_reader_regex_pattern,
         test_readers_consistent_interface,
     ]

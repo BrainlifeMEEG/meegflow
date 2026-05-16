@@ -37,6 +37,7 @@ def test_run_pipeline_signature():
             'sessions',
             'tasks',
             'acquisitions',
+            'runs',
             'extension',
         ]
         
@@ -59,6 +60,7 @@ def test_cli_passes_correct_arguments():
     assert "subjects=args.subjects" in code, "subjects parameter not passed to run_pipeline"
     assert "tasks=args.tasks" in code, "tasks parameter not passed to run_pipeline"
     assert "sessions=args.sessions" in code, "sessions parameter not passed to run_pipeline"
+    assert "runs=args.runs" in code, "runs parameter not passed to run_pipeline"
     
     print("✓ CLI passes correct arguments to run_pipeline")
 
@@ -77,6 +79,7 @@ def test_cli_has_new_arguments():
         '--sessions',
         '--tasks',
         '--acquisitions',
+        '--runs',
         '--extension',
         '--io-backend',
         '--config',
@@ -126,6 +129,23 @@ def test_tasks_parameter_accepts_none():
         raise
 
 
+def test_runs_parameter_accepts_none():
+    """Test that runs parameter can be None."""
+    try:
+        from meegflow import MEEGFlowPipeline
+        import inspect
+
+        sig = inspect.signature(MEEGFlowPipeline.run_pipeline)
+        runs_param = sig.parameters['runs']
+
+        assert runs_param.default is None, "runs parameter should default to None"
+
+        print("✓ runs parameter accepts None (processes all runs)")
+    except ImportError as e:
+        print(f"⚠ Skipping test (missing dependencies): {e}")
+        raise
+
+
 def test_cli_subjects_not_required():
     """Test that --subjects is not required in CLI."""
     cli_file = src_dir / "meegflow" / "cli.py"
@@ -166,6 +186,7 @@ def run_all_tests():
         test_cli_has_new_arguments,
         test_subjects_parameter_accepts_none,
         test_tasks_parameter_accepts_none,
+        test_runs_parameter_accepts_none,
         test_cli_subjects_not_required,
     ]
     

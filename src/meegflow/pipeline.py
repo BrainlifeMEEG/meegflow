@@ -2372,11 +2372,12 @@ class MEEGFlowPipeline:
         return results
 
     def run_pipeline(
-        self, 
+        self,
         subjects: Union[str, List[str]] = None,
         sessions: Union[str, List[str]] = None,
         tasks: Union[str, List[str]] = None,
         acquisitions: Union[str, List[str]] = None,
+        runs: Union[str, List[str]] = None,
         extension: str = '.vhdr',
         io_backend: str = 'read_raw_bids'
     ) -> Dict[str, Any]:
@@ -2392,6 +2393,8 @@ class MEEGFlowPipeline:
             Task(s) to process. None matches all tasks.
         acquisitions : str | list of str | None
             Acquisition parameter(s). None matches all acquisitions.
+        runs : str | list of str | None
+            Run ID(s) to process. None matches all runs.
         extension : str
             File extension to match (default: ``'.vhdr'``).
         io_backend : str
@@ -2408,13 +2411,12 @@ class MEEGFlowPipeline:
             ``'html_report'``), or an ``'error'`` key with the exception if
             processing failed.
         """
-        
-        # Use the reader to find recordings
         recordings = self.reader.find_recordings(
             subjects=subjects,
             sessions=sessions,
             tasks=tasks,
             acquisitions=acquisitions,
+            runs=runs,
             extension=extension
         )
         

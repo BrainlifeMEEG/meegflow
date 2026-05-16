@@ -49,7 +49,7 @@ Optional filters (if not specified, all matching files are processed):
   --sessions          Session ID(s) to process
   --tasks             Task name(s) to process
   --acquisitions      Acquisition parameter(s) to process
-  --runs              Run number(s) to process
+  --runs              Run ID(s) to process
   --extension         File extension (default: .vhdr)
 
 Other options:
@@ -117,6 +117,12 @@ def _parse_args():
         nargs='+',
         required=False,
         help='Acquisition parameter(s) to process.'
+    )
+    parser.add_argument(
+        '--runs',
+        nargs='+',
+        required=False,
+        help='Run ID(s) to process. Provide multiple run IDs separated by spaces e.g. --runs 01 02. If not provided, all runs will be processed.'
     )
     parser.add_argument(
         '--extension',
@@ -204,6 +210,7 @@ def main():
         sessions=args.sessions,
         tasks=args.tasks,
         acquisitions=args.acquisitions,
+        runs=args.runs,
         extension=args.extension,
         io_backend=args.io_backend
     )
