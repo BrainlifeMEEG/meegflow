@@ -139,6 +139,7 @@ class MEEGFlowPipeline:
             'strip_recording': self._step_strip_recording,
             'concatenate_recordings': self._step_concatenate_recordings,
             'copy_instance': self._step_copy_instance,
+            'call_module': self._step_call_module,
             'set_montage': self._step_set_montage,
             'drop_unused_channels': self._step_drop_unused_channels,
             'bandpass_filter': self._step_bandpass_filter,
@@ -650,6 +651,136 @@ class MEEGFlowPipeline:
             'step': 'copy_instance',
             'from_instance': from_instance,
             'to_instance': to_instance
+        })
+
+        return data
+
+    def _step_call_module(self, data: Dict[str, Any], step_config: Dict[str, Any]) -> Dict[str, Any]:
+        """Dynamically call any importable function or object method and store the result in data.
+
+        Useful for using MNE or third-party functions directly from the pipeline
+        config without writing a custom step. Supports both module-level functions
+        and methods on objects already present in the data dict.
+
+        Any string value (in ``args`` or keyword arguments) that starts with
+        ``data__`` is resolved as a path into the data dict using ``__`` as the
+        key separator (e.g. ``'data__raw'`` → ``data['raw']``,
+        ``'data__house__dog'`` → ``data['house']['dog']``).
+
+        Args:
+            data: Pipeline data dict.
+            step_config: Step parameters:
+                - ``module`` (str): Fully-qualified callable
+                  (e.g. ``'mne.channels.make_standard_montage'``) when calling
+                  a module-level function, or just the method name
+                  (e.g. ``'set_montage'``) when ``target`` is provided.
+                - ``target`` (str, optional): ``data__``-prefixed reference to
+                  an object already in ``data``. When present, ``module`` is
+                  treated as a method name on that object rather than an
+                  importable path.
+                - ``var_name`` (str | None, optional): Key under which to store
+                  the return value in ``data``. Set to ``null`` to discard the
+                  result (useful for in-place methods). Mutually exclusive with
+                  ``unpack_as``.
+                - ``unpack_as`` (list of str, optional): Unpack a multi-value
+                  return into separate ``data`` keys in order. Mutually
+                  exclusive with ``var_name``.
+                - ``args`` (list, optional): Positional arguments forwarded to
+                  the callable in order. Each element supports ``data__``
+                  resolution.
+                - Any remaining key is forwarded as a keyword argument.
+                  Values support ``data__`` resolution.
+
+        Returns:
+            Updated data dict.
+
+        Raises:
+            ValueError: If ``module`` is missing, ``var_name`` and
+                ``unpack_as`` are both set, or a ``data__`` path cannot be
+                resolved.
+
+        Example config::
+
+            # Module-level function with keyword args
+            - name: call_module
+              module: mne.channels.make_standard_montage
+              var_name: montage
+              kind: standard_1020
+
+            # Method call on a data object (target)
+            - name: call_module
+              target: "data__raw"
+              module: set_montage
+              var_name: null
+              montage: "data__montage"
+              on_missing: ignore
+
+            # Positional-only function via args list
+            - name: call_module
+              module: os.path.join
+              var_name: out_path
+              args:
+                - "/derivatives"
+                - "data__subject"
+
+            # Unpack a multi-value return into separate data keys
+            - name: call_module
+              module: mne.events_from_annotations
+              unpack_as: [events, event_id]
+              args:
+                - "data__raw"
+        """
+        module_str = step_config.get('module')
+        var_name = step_config.get('var_name')
+        target_ref = step_config.get('target')
+        unpack_as = step_config.get('unpack_as')
+
+        if not module_str:
+            raise ValueError("call_module step requires 'module' in step_config")
+
+        if var_name is not None and unpack_as is not None:
+            raise ValueError("call_module: 'var_name' and 'unpack_as' are mutually exclusive")
+
+        def _resolve(value):
+            if isinstance(value, str) and value.startswith('data__'):
+                path = value[6:]
+                try:
+                    obj = data
+                    for k in path.split('__'):
+                        obj = obj[k]
+                    return obj
+                except KeyError as e:
+                    raise ValueError(
+                        f"call_module: could not resolve '{value}' in data: key {e} not found"
+                    ) from e
+            return value
+
+        if target_ref is not None:
+            func = getattr(_resolve(target_ref), module_str)
+        else:
+            mod_path, func_name = module_str.rsplit('.', 1)
+            func = getattr(importlib.import_module(mod_path), func_name)
+
+        reserved = {'module', 'var_name', 'args', 'target', 'unpack_as'}
+        args = [_resolve(v) for v in step_config.get('args', [])]
+        kwargs = {key: _resolve(value) for key, value in step_config.items() if key not in reserved}
+
+        result = func(*args, **kwargs)
+
+        if unpack_as is not None:
+            for key, val in zip(unpack_as, result):
+                data[key] = val
+        elif var_name is not None:
+            data[var_name] = result
+
+        data['preprocessing_steps'].append({
+            'step': 'call_module',
+            'module': module_str,
+            'target': target_ref,
+            'var_name': var_name,
+            'unpack_as': unpack_as,
+            'args': step_config.get('args', []),
+            'kwargs': {k: v for k, v in step_config.items() if k not in reserved},
         })
 
         return data

@@ -27,6 +27,76 @@ pipeline:
 | `copy_instance` | `source`, `dest` |
 | `concatenate_recordings` | `instances` (list) |
 
+### Dynamic module call
+
+| Step | Key parameters |
+|------|---------------|
+| `call_module` | `module` (str), `target` (str, optional), `var_name` (str\|null), `unpack_as` (list, optional), `args` (list, optional), plus any keyword arguments |
+
+`call_module` dynamically imports and calls any Python callable, or calls a method on an object already in the pipeline data dict. It is a lightweight escape hatch for using MNE functions or any other library directly from the config without writing a custom step.
+
+**Parameters**
+
+- `module`: Fully-qualified dotted path to the callable (e.g. `mne.channels.make_standard_montage`) when calling a module-level function. Just the method name (e.g. `set_montage`) when `target` is also provided.
+- `target` *(optional)*: A `data__`-prefixed reference to an object already in `data`. When present, `module` is treated as a method name on that object.
+- `var_name`: Key under which the return value is stored in `data`. Set to `null` to discard the result (useful for in-place methods). Mutually exclusive with `unpack_as`.
+- `unpack_as` *(optional)*: A list of data keys to unpack a multi-value return into, in order. Mutually exclusive with `var_name`.
+- `args` *(optional)*: A YAML list of positional arguments forwarded to the callable in order.
+- Any additional key/value pairs are forwarded as keyword arguments.
+
+**Referencing pipeline data**
+
+Any string value (in `args`, keyword arguments, or `target`) that starts with `data__` is resolved as a path into the pipeline data dict, using `__` as the key separator:
+
+| Config value | Resolved as |
+|---|---|
+| `"data__raw"` | `data['raw']` |
+| `"data__house__dog"` | `data['house']['dog']` |
+
+**Examples**
+
+```yaml
+# Module-level function with keyword arguments
+- name: call_module
+  module: mne.channels.make_standard_montage
+  var_name: montage
+  kind: standard_1020
+
+# Method call on a data object (the canonical MNE pattern)
+- name: call_module
+  target: "data__raw"
+  module: set_montage
+  var_name: null
+  montage: "data__montage"
+  on_missing: ignore
+
+# Positional-only function via the args list
+- name: call_module
+  module: os.path.join
+  var_name: out_path
+  args:
+    - "/derivatives"
+    - "data__subject"
+
+# Unpack a multi-value return into separate data keys
+- name: call_module
+  module: mne.events_from_annotations
+  unpack_as: [events, event_id]
+  args:
+    - "data__raw"
+
+# In-place method call — discard return value
+- name: call_module
+  target: "data__raw"
+  module: filter
+  var_name: null
+  l_freq: 1.0
+  h_freq: 40.0
+```
+
+!!! note
+    For complex logic that transforms data across multiple keys, writes conditional branches, or needs error handling, a [custom step](../api/pipeline.md) is a better fit than chaining many `call_module` steps.
+
 ### Filtering
 
 | Step | Key parameters |

@@ -228,7 +228,7 @@ pipeline = MEEGFlowPipeline(
 results = pipeline.run_pipeline(subjects=['01', '02'], tasks='rest')
 ```
 
-For detailed information on readers, pattern examples, and troubleshooting, see [READERS.md](READERS.md).
+For detailed information on readers, pattern examples, and troubleshooting, see the [Readers documentation](docs/usage/readers.md).
 
 ## Output Structure
 
@@ -272,6 +272,7 @@ Data Organization:
 - **strip_recording**: Crop recordings to remove data outside the first and last events
 - **concatenate_recordings**: Concatenate multiple raw recordings into a single continuous recording
 - **copy_instance**: Create a copy of a data instance for comparison or backup purposes
+- **call_module**: Dynamically call any importable function or method on a pipeline object (MNE, NumPy, or any library) and store the result in the pipeline data dict — a lightweight escape hatch for one-off calls that don't warrant a custom step. Supports positional args, `data__` references to pipeline objects, method calls via `target`, and multi-value unpacking via `unpack_as`
 
 Setup:
 - **set_montage**: Set channel montage for EEG data
