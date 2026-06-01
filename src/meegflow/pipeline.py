@@ -57,6 +57,12 @@ Output:
   - generate_json_report: Create JSON report
   - generate_html_report: Create interactive HTML report
 
+Utilities:
+  - call_module: Dynamically call any importable function or object method.
+    Supports positional args, data__ references to pipeline objects, method
+    calls via ``target``, and multi-value unpacking via ``unpack_as``.
+    See configuration reference for full details.
+
 Usage Example
 -------------
 ```python
