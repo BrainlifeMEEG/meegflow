@@ -14,17 +14,29 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Union
 import re
 from itertools import product
-from mne_bids import BIDSPath, get_entity_vals
+import mne
+from mne_bids import BIDSPath, get_entity_vals, read_raw_bids
 from mne.utils import logger
 
 
 class DatasetReader(ABC):
     """Abstract base class for dataset readers.
-    
+
     A reader is responsible for discovering data files based on specified criteria
     and returning them in a format the pipeline can process.
     """
-    
+
+    @property
+    @abstractmethod
+    def root(self) -> Path:
+        """Root directory of the dataset (e.g. BIDS root or glob root).
+
+        Standardizes access to the dataset location across reader
+        implementations, so callers don't need to know whether a given
+        reader calls its root ``bids_root`` or ``data_root``.
+        """
+        pass
+
     @abstractmethod
     def find_recordings(
         self,
@@ -62,6 +74,49 @@ class DatasetReader(ABC):
         """
         pass
 
+    def read(
+        self,
+        paths: List[Any],
+        io_backend: str = 'read_raw_bids'
+    ) -> List[Any]:
+        """Load the raw files for a single recording into memory.
+
+        Parameters
+        ----------
+        paths : list of BIDSPath or Path
+            File paths belonging to one recording (as returned in the 'paths'
+            key of ``find_recordings``).
+        io_backend : str
+            How to read each file. ``'read_raw_bids'`` (default) uses
+            ``mne_bids.read_raw_bids``; any other value is resolved as a
+            function name on ``mne.io`` (e.g. ``'read_raw_eeglab'``).
+
+        Returns
+        -------
+        list of mne.io.Raw
+            Preloaded Raw objects, one per path.
+
+        Raises
+        ------
+        ValueError
+            If ``io_backend`` is not ``'read_raw_bids'`` and does not resolve to
+            a function on ``mne.io``.
+        """
+        if io_backend == 'read_raw_bids':
+            raws = [read_raw_bids(bids_path=bp, verbose=True) for bp in paths]
+        else:
+            read_func = getattr(mne.io, io_backend, None)
+            if read_func is None:
+                raise ValueError(f"Unknown io_backend '{io_backend}' specified")
+            raws = [read_func(str(p), preload=True, verbose=True) for p in paths]
+
+        # Ensure data are loaded into memory for processing
+        for raw in raws:
+            if not raw.preload:
+                raw.load_data()
+
+        return raws
+
 
 class BIDSReader(DatasetReader):
     """Reader for BIDS-formatted datasets using MNE-BIDS.
@@ -77,7 +132,12 @@ class BIDSReader(DatasetReader):
     
     def __init__(self, bids_root: Union[str, Path]):
         self.bids_root = Path(bids_root)
-        
+
+    @property
+    def root(self) -> Path:
+        return self.bids_root
+
+
     def _build_include_patterns(
         self,
         subjects: Optional[List[str]] = None,
@@ -294,12 +354,16 @@ class GlobReader(DatasetReader):
     def __init__(self, data_root: Union[str, Path], pattern: str):
         self.data_root = Path(data_root)
         self.pattern = pattern
-        
+
         # Parse the pattern to extract variable names and create glob pattern
         self.variable_names = self._extract_variable_names(pattern)
         self.glob_pattern = self._create_glob_pattern(pattern)
         self.regex_pattern = self._create_regex_pattern(pattern)
-        
+
+    @property
+    def root(self) -> Path:
+        return self.data_root
+
     def _extract_variable_names(self, pattern: str) -> List[str]:
         """Extract variable names from pattern like {subject}, {task}, etc."""
         return re.findall(r'\{(\w+)\}', pattern)
