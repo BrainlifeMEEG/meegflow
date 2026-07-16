@@ -18,16 +18,6 @@ RUN apt-get update && apt-get install -y \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements file
-COPY requirements.txt .
-
-# Install Python dependencies
-RUN if [ -n "$PIP_TRUSTED_HOST" ]; then \
-        pip install --no-cache-dir --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org -r requirements.txt; \
-    else \
-        pip install --no-cache-dir -r requirements.txt; \
-    fi
-
 # Copy the entire project
 COPY . .
 
