@@ -750,6 +750,6 @@ def generate_html_report(
     # Ensure directory exists
     bids_path.mkdir(exist_ok=True)
 
-    html_report.save(bids_path.fpath, overwrite=True, open_browser=False)
+    html_report.save(bids_path.fpath, overwrite=True, open_browser=False, verbose=False)
 
     return str(bids_path)
